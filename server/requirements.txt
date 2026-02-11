@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+librosa
+transformers
+torch
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]

@@ -1,0 +1,23 @@
+# Python (Server)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.pytest_cache/
+
+# Node (Client)
+node_modules/
+dist/
+build/
+.eslintcache
+npm-debug.log*
+
+# Databases & System
+*.db
+*.sqlite3
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
