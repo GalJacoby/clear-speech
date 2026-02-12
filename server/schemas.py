@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 import uuid
 
 class UserCreate(BaseModel):
@@ -28,6 +28,19 @@ class PatientOut(BaseModel):
     full_name: str
     target_sounds: List[str]
     clinician_id: uuid.UUID # This is the proof!
+
+    class Config:
+        from_attributes = True
+
+
+class RecordingOut(BaseModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    clinician_id: uuid.UUID
+    target_sound: str
+    file_path: str
+    created_at: datetime
+    is_reviewed: bool
 
     class Config:
         from_attributes = True

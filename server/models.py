@@ -39,3 +39,26 @@ class Attempt(Base):
     phoneme_data = Column(JSONB)
     is_correct = Column(Boolean)
     created_at = Column(DateTime, server_default=func.now())
+
+class Recording(Base):
+    __tablename__ = "recordings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Links to the User table (the patient who made the recording)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    # Links to the User table (the clinician who manages this patient)
+    clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    # Information about the practice
+    target_sound = Column(String, nullable=False)
+
+    # Where the actual file is stored on the server's disk
+    file_path = Column(String, nullable=False, unique=True)
+
+    # Metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Optional: You can add an 'is_reviewed' flag if the clinician checked it
+    is_reviewed = Column(Boolean, default="false")
