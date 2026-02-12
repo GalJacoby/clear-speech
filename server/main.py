@@ -3,7 +3,7 @@ from database import engine
 import models
 
 # Import our new routers
-from routers import auth_routes, clinician_routes, patient_routes, recording_routes
+from routers import auth_routes, clinician_routes, patient_routes, recording_routes, practice_routes
 
 # Initialize DB
 models.Base.metadata.create_all(bind=engine)
@@ -19,3 +19,4 @@ app.include_router(auth_routes.router)
 app.include_router(clinician_routes.router)
 app.include_router(patient_routes.router)
 app.include_router(recording_routes.router)
+app.include_router(practice_routes.router)

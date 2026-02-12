@@ -32,11 +32,31 @@ class PatientOut(BaseModel):
     class Config:
         from_attributes = True
 
+# --- Practice Session Schemas ---
+class PracticeSessionCreate(BaseModel):
+    patient_id: uuid.UUID
+    target_sound: str
+    title: Optional[str] = None
+
+class PracticeSessionOut(BaseModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    clinician_id: uuid.UUID
+    target_sound: str
+    title: Optional[str]
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 
 class RecordingOut(BaseModel):
     id: uuid.UUID
     patient_id: uuid.UUID
     clinician_id: uuid.UUID
+    session_id: uuid.UUID
     target_sound: str
     file_path: str
     created_at: datetime

@@ -30,35 +30,27 @@ class WordBank(Base):
     category = Column(String)
     difficulty = Column(Integer)
 
-class Attempt(Base):
-    __tablename__ = "attempts"
+
+class PracticeSession(Base):
+    __tablename__ = "practice_sessions"
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.user_id"))
-    word_id = Column(Integer, ForeignKey("word_bank.id"))
-    accuracy_score = Column(Float)
-    phoneme_data = Column(JSONB)
-    is_correct = Column(Boolean)
-    created_at = Column(DateTime, server_default=func.now())
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    target_sound = Column(String, nullable=False)
+    title = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending, completed, reviewed
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class Recording(Base):
     __tablename__ = "recordings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-
-    # Links to the User table (the patient who made the recording)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-
-    # Links to the User table (the clinician who manages this patient)
     clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-
-    # Information about the practice
+    session_id = Column(UUID(as_uuid=True), ForeignKey("practice_sessions.id"), nullable=False)
     target_sound = Column(String, nullable=False)
-
-    # Where the actual file is stored on the server's disk
     file_path = Column(String, nullable=False, unique=True)
-
-    # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Optional: You can add an 'is_reviewed' flag if the clinician checked it
-    is_reviewed = Column(Boolean, default="false")
+    is_reviewed = Column(Boolean, default=False)
