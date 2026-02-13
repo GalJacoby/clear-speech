@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from database import engine
 import models
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import our new routers
 from routers import auth_routes, clinician_routes, patient_routes, recording_routes, practice_routes
@@ -10,6 +11,13 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="ClearSpeech API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], # The address of your React app
+    allow_credentials=True,
+    allow_methods=["*"], # Allow GET, POST, etc.
+    allow_headers=["*"], # Allow all headers (like Authorization)
+)
 @app.get("/")
 async def root():
     return {"message": "ClearSpeech API is running"}
