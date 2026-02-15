@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 
-# Import root modules (PyCharm might mark this red, but it works at runtime)
+# Import root modules
 import database
 import models
 import schemas

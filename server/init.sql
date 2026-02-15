@@ -26,22 +26,25 @@ CREATE TABLE word_bank (
     difficulty INTEGER CHECK (difficulty BETWEEN 1 AND 5)
 );
 
-CREATE TABLE assignments (
-    id SERIAL PRIMARY KEY,
-    patient_id UUID REFERENCES patients(user_id),
+CREATE TABLE practice_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID REFERENCES users(id),
     clinician_id UUID REFERENCES users(id),
-    word_ids INTEGER[],
-    due_date DATE,
-    status VARCHAR DEFAULT 'active'
+    target_sound VARCHAR,
+    title VARCHAR,
+    status VARCHAR,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE attempts (
+
+
+CREATE TABLE recordings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID REFERENCES patients(user_id),
-    word_id INTEGER REFERENCES word_bank(id),
-    audio_url VARCHAR,
-    accuracy_score FLOAT CHECK (accuracy_score BETWEEN 0.0 AND 100.0),
-    phoneme_data JSONB,
-    is_correct BOOLEAN,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    patient_id UUID REFERENCES users(id),
+    clinician_id UUID REFERENCES users(id),
+    session_id UUID REFERENCES practice_sessions(id),
+    target_sound VARCHAR,
+    file_path VARCHAR UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_reviewed BOOLEAN DEFAULT FALSE
 );
