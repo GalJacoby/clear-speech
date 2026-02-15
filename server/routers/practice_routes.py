@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-import uuid
-
 import database
 import models
 import schemas
@@ -61,3 +59,15 @@ def get_my_sessions(
     ).all()
 
     return sessions
+
+
+@router.get("/words/{target_sound}")
+def get_words_for_session(target_sound: str, db: Session = Depends(database.get_db)):
+    # Currently fetching all words.
+    # TODO: In the future, filter by target_sound (e.g., words containing 'ch')
+    words = db.query(models.WordBank).all()
+
+    if not words:
+        raise HTTPException(status_code=404, detail="No words found")
+
+    return words
