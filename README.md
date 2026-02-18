@@ -1,1 +1,1 @@
-"# ClearSpeech - AI-Driven Speech Therapy Platform" 
+"# ClearSpeech - AI-Driven Speech Therapy Platform"

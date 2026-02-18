@@ -61,3 +61,29 @@ def get_my_patients(
 
     my_patients = db.query(models.Patient).filter(models.Patient.clinician_id == current_user.id).all()
     return my_patients
+
+@router.get("/patients/{patient_id}/sessions", response_model=List[schemas.PracticeSessionOut])
+def get_patient_sessions(
+        patient_id: str,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    # 1. Verify user is a clinician
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Only clinicians can view patient details.")
+
+    # 2. Verify the patient belongs to this clinician
+    patient = db.query(models.Patient).filter(
+        models.Patient.user_id == patient_id,
+        models.Patient.clinician_id == current_user.id
+    ).first()
+
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found or not linked to you.")
+
+    # 3. Fetch all practice sessions for this patient
+    sessions = db.query(models.PracticeSession).filter(
+        models.PracticeSession.patient_id == patient_id
+    ).all()
+
+    return sessions
