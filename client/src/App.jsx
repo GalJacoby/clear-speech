@@ -65,10 +65,9 @@ function Login({ setToken }) {
 // COMPONENT 2: The Practice Room (PERSISTENT RECORDINGS)
 // ==========================================
 function PracticeRoom() {
-  const { sessionId } = useParams()
+  //const { sessionId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-
   const { targetSound } = location.state || { targetSound: 's' }
 
   // Data State
@@ -325,7 +324,7 @@ function Dashboard({ setToken }) {
   return (
     <div className="card-container" style={{maxWidth: '600px'}}>
       <h1>Welcome Back!</h1>
-      <p style={{color: '#6b7280'}}>Hello <strong>{user.email}</strong> ({user.role})</p>
+      <p style={{color: '#6b7280'}}>Hello <strong>{user.full_name}</strong></p>
 
       {error && <p className="error-msg">{error}</p>}
 

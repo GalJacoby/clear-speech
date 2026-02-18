@@ -7,10 +7,12 @@ import uuid
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    full_name: str
 
 class UserOut(BaseModel):
     id: UUID
     email: EmailStr
+    full_name: str
     role: str
 
     class Config:

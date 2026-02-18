@@ -31,6 +31,7 @@ def create_patient(
     new_patient_user = models.User(
         email=patient_data.email,
         password_hash=hashed_pwd,
+        full_name=patient_data.full_name,
         role="patient"
     )
     db.add(new_patient_user)

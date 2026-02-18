@@ -25,6 +25,7 @@ def register_clinician(user_data: schemas.UserCreate, db: Session = Depends(data
     new_user = models.User(
         email=user_data.email,
         password_hash=hashed_pwd,
+        full_name=user_data.full_name,
         role="clinician"
     )
 
@@ -61,5 +62,6 @@ def get_current_user_identity(current_user: models.User = Depends(auth.get_curre
     return {
         "id": current_user.id,
         "email": current_user.email,
+        "full_name": current_user.full_name,
         "role": current_user.role
     }
