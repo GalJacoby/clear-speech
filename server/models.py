@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Float, Boolean, ARRAY, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 from database import Base
 
@@ -55,3 +56,12 @@ class Recording(Base):
     file_path = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_reviewed = Column(Boolean, default=False)
+    word_id = Column(Integer, ForeignKey("word_bank.id"), nullable=False)
+
+    # Relationship: Allows us to access the full WordBank object via .word
+    word = relationship("WordBank")
+
+    # Property: Extracts just the text string for easier API response
+    @property
+    def word_text(self):
+        return self.word.text if self.word else "Unknown"

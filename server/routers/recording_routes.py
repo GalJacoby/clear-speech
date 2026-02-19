@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import shutil
 import os
 import uuid
@@ -26,6 +26,7 @@ if not os.path.exists(UPLOAD_DIR):
 @router.post("/upload", response_model=schemas.RecordingOut)
 async def upload_audio(
         session_id: uuid.UUID = Form(...),  # Now mandatory to link with a session
+        word_id: int = Form(...),
         file: UploadFile = File(...),
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
@@ -68,6 +69,7 @@ async def upload_audio(
         session_id=session.id,
         target_sound=session.target_sound,  # Inherited from the session
         file_path=file_path,
+        word_id=word_id,
         is_reviewed=False
     )
 
@@ -103,8 +105,8 @@ def get_recordings_by_session(
     if current_user.id != session.clinician_id and current_user.id != session.patient_id:
         raise HTTPException(status_code=403, detail="You do not have permission to view these recordings.")
 
-    # 3. Fetch and return all recordings for this session
-    recordings = db.query(models.Recording).filter(models.Recording.session_id == session_id).all()
+    # Eager load the 'word' relationship to access .word_text efficiently
+    recordings = db.query(models.Recording).options(joinedload(models.Recording.word)).filter(models.Recording.session_id == session_id).all()
 
     return recordings
 

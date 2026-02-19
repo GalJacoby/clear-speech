@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 
 function PracticeRoom() {
-  //const { sessionId } = useParams()
+  const { sessionId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const { targetSound } = location.state || { targetSound: 's' }
@@ -20,6 +20,7 @@ function PracticeRoom() {
 
   // NEW: Store recordings by Word ID (Dictionary: { wordId: { url, blob } })
   const [recordingsMap, setRecordingsMap] = useState({})
+
 
   // Refs
   const mediaRecorderRef = useRef(null)
@@ -48,6 +49,49 @@ function PracticeRoom() {
   const currentWord = words[currentIndex]
   const currentRecording = currentWord ? recordingsMap[currentWord.id] : null
 
+  // --- COMPLETION LOGIC ---
+  // Check if every word fetched from the DB has a corresponding entry in our recordingsMap
+  const isSessionComplete = words.length > 0 && Object.keys(recordingsMap).length === words.length;
+
+const handleSubmitSession = async () => {
+    // 1. Ask for confirmation
+    if (!window.confirm("Are you sure you want to submit all recordings?")) return
+
+    try {
+      const token = localStorage.getItem('token')
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data'
+      }
+
+      // 2. Create an array of upload promises
+      const uploadPromises = words.map(word => {
+        const recordingData = recordingsMap[word.id]
+
+        if (!recordingData) return null
+
+        const formData = new FormData()
+        formData.append('file', recordingData.blob, `recording_${word.id}.wav`)
+        formData.append('session_id', sessionId)
+
+        // --- NEW LINE HERE ---
+        formData.append('word_id', word.id) // אנחנו שולחים את ה-ID של המילה לשרת
+        // ---------------------
+
+        return axios.post('http://127.0.0.1:8000/recordings/upload', formData, { headers })
+      })
+
+      // 3. Wait for ALL uploads to finish
+      await Promise.all(uploadPromises)
+
+      alert("✅ Great job! All recordings submitted successfully.")
+      navigate('/dashboard')
+
+    } catch (err) {
+      console.error("Upload error:", err)
+      alert("❌ Something went wrong while uploading. Please try again.")
+    }
+  }
   // --- RECORDING LOGIC ---
 
   const startRecording = async () => {
@@ -184,26 +228,68 @@ function PracticeRoom() {
 
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-        <button
-            onClick={handlePrev}
-            disabled={currentIndex === 0}
-            className="btn-secondary"
-            style={{ opacity: currentIndex === 0 ? 0.5 : 1 }}
-        >
-            Previous
-        </button>
+{/* --- FOOTER AREA --- */}
+      <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-        <button
-            onClick={handleNext}
-            disabled={currentIndex === words.length - 1}
-            className="btn-primary"
-            style={{ opacity: currentIndex === words.length - 1 ? 0.5 : 1 }}
-        >
-            Next Word
-        </button>
-      </div>
-    </div>
+        {/* Navigation Buttons Row */}
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+            <button
+                onClick={handlePrev}
+                disabled={currentIndex === 0}
+                className="btn-secondary"
+                style={{
+                    flex: 1, // Make buttons equal width
+                    opacity: currentIndex === 0 ? 0.5 : 1,
+                    margin: 0 // Reset default margins
+                }}
+            >
+                ⬅ Previous
+            </button>
+
+            <button
+                onClick={handleNext}
+                disabled={currentIndex === words.length - 1}
+                className="btn-primary"
+                style={{
+                    flex: 1, // Make buttons equal width
+                    opacity: currentIndex === words.length - 1 ? 0.5 : 1,
+                    backgroundColor: '#3b82f6', // Standard Blue
+                    margin: 0
+                }}
+            >
+                Next Word ➡
+            </button>
+        </div>
+
+        {/* Submit Section */}
+        <div style={{
+            paddingTop: '20px',
+            borderTop: '1px solid #e5e7eb',
+            textAlign: 'center'
+        }}>
+            <button
+              onClick={handleSubmitSession}
+              disabled={!isSessionComplete}
+              style={{
+                backgroundColor: isSessionComplete ? '#10b981' : '#f3f4f6', // Green or very light gray
+                color: isSessionComplete ? 'white' : '#9ca3af', // White text or gray text
+                border: isSessionComplete ? 'none' : '1px dashed #d1d5db', // Dashed border when locked
+                padding: '12px 30px',
+                fontSize: '1rem',
+                borderRadius: '30px', // Rounded pill shape
+                cursor: isSessionComplete ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s ease',
+                fontWeight: 'bold',
+                boxShadow: isSessionComplete ? '0 4px 6px -1px rgba(16, 185, 129, 0.4)' : 'none',
+                width: '100%',
+                maxWidth: '300px' // Prevent it from being too wide
+              }}
+            >
+              {isSessionComplete ? "✅ Submit All Recordings" : `🎤 Record ${words.length - Object.keys(recordingsMap).length} more to finish`}
+            </button>
+        </div>
+
+      </div>    </div>
   )
 }
 

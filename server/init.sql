@@ -46,5 +46,7 @@ CREATE TABLE recordings (
     target_sound VARCHAR,
     file_path VARCHAR UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    is_reviewed BOOLEAN DEFAULT FALSE
+    is_reviewed BOOLEAN DEFAULT FALSE,
+    word_id INTEGER REFERENCES word_bank(id) NOT NULL
+
 );

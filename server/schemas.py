@@ -63,6 +63,7 @@ class RecordingOut(BaseModel):
     file_path: str
     created_at: datetime
     is_reviewed: bool
+    word_text: str
 
     class Config:
         from_attributes = True
