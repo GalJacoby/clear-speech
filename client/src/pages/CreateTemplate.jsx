@@ -84,8 +84,16 @@ function CreateTemplate() {
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>Create New Practice Template 🛠️</h2>
-        <button onClick={() => navigate('/dashboard')} className="btn-secondary">Cancel</button>
+        <h2 style={{ margin: 0 }}>Create New Practice Template</h2>
+
+        {/* CHANGED: Styled the Cancel button to match the navigation buttons */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="btn-primary"
+          style={{ backgroundColor: '#4b5563', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
+        >
+          Cancel
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
@@ -167,7 +175,7 @@ function CreateTemplate() {
 
         </div>
 
-        <button type="submit" className="btn-primary" style={{ marginTop: '20px', width: '100%', padding: '12px', fontSize: '1.1rem' }}>
+        <button type="submit" className="btn-primary" style={{ marginTop: '20px', width: '100%', padding: '12px', fontSize: '1.1rem', backgroundColor: '#3b82f6' }}>
           💾 Save Practice Template
         </button>
 

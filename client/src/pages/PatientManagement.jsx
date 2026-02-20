@@ -16,7 +16,7 @@ function PatientManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState(null)
 
-  // CHANGED: Now an array to hold multiple selected template IDs
+  // Array to hold multiple selected template IDs
   const [selectedTemplateIds, setSelectedTemplateIds] = useState([])
   const [modalMessage, setModalMessage] = useState('')
 
@@ -95,7 +95,7 @@ function PatientManagement() {
         await axios.post('http://127.0.0.1:8000/practice/assignments', assignmentData, { headers })
       } catch (err) {
         hasError = true;
-        // CHANGED: Grab the specific detail message from the FastAPI backend if it exists
+        // Grab the specific detail message from the FastAPI backend if it exists
         if (err.response && err.response.data && err.response.data.detail) {
           errorMessage = `❌ ${err.response.data.detail}`;
         }
@@ -122,11 +122,19 @@ function PatientManagement() {
 
       {/* Header Area */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <div style={{ textAlign: 'left' }}>
-          <h1 style={{ margin: 0, color: '#111827' }}>Patient Management 👥</h1>
+        <div style={{ textAlign: 'left', flex: 1 }}>
+          <h1 style={{ margin: 0, color: '#111827' }}>Patient Management</h1>
           <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Monitor and manage all your patients</p>
         </div>
-        <button onClick={() => navigate('/dashboard')} className="btn-secondary">Back to Dashboard</button>
+
+        {/* CHANGED: Fixed width issue and changed color to a distinct navigation gray/blue */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="btn-primary"
+          style={{ backgroundColor: '#4b5563', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
+        >
+          Back to Dashboard
+        </button>
       </div>
 
       {/* Patients Grid */}
@@ -143,7 +151,6 @@ function PatientManagement() {
                 </div>
                 <div>
                   <h3 style={{ margin: 0, color: '#111827' }}>{patient.full_name}</h3>
-                  <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>DOB: {patient.date_of_birth || 'N/A'}</span>
                 </div>
               </div>
 
@@ -157,10 +164,11 @@ function PatientManagement() {
                 >
                   View Details
                 </button>
+
                 <button
                     onClick={() => openAssignModal(patient)}
-                    className="btn-secondary"
-                    style={{flex: 1, backgroundColor: 'white', color: '#111827', border: '1px solid #d1d5db'}}
+                    className="btn-primary"
+                    style={{flex: 1, backgroundColor: '#111827'}}
                 >
                   Assign
                 </button>
@@ -203,7 +211,6 @@ function PatientManagement() {
                     Select Practice Templates ({selectedTemplateIds.length} selected):
                   </label>
 
-                  {/* CHANGED: Checkbox list instead of a dropdown */}
                   <div style={{
                     maxHeight: '200px',
                     overflowY: 'auto',
@@ -238,13 +245,12 @@ function PatientManagement() {
                   </div>
                 </div>
 
-                <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
+                <button type="submit" className="btn-primary" style={{ marginTop: '10px', backgroundColor: '#3b82f6' }}>
                   Submit Assignments
                 </button>
               </form>
             )}
 
-            {/* Display success or error message inside the modal */}
             {modalMessage && (
               <div style={{
                 marginTop: '15px',

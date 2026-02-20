@@ -64,8 +64,7 @@ function Dashboard({ setToken }) {
 
   return (
     <div className="card-container" style={{maxWidth: '600px'}}>
-      <h1>Welcome Back!</h1>
-      <p style={{color: '#6b7280'}}>Hello <strong>{user.full_name}</strong></p>
+      <h1>Welcome Back, {user.full_name}!</h1>
 
       {error && <p className="error-msg">{error}</p>}
 
@@ -116,15 +115,13 @@ function Dashboard({ setToken }) {
       {/* --- CLINICIAN PANEL --- */}
       {user.role === 'clinician' && (
           <div style={{textAlign: 'left', marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px'}}>
-              <h3>Clinician Panel</h3>
-              <p>Manage your patients and assign practice sessions.</p>
 
               <button
                   onClick={() => navigate('/patients')}
                   className="btn-primary"
                   style={{width: '100%'}}
               >
-                  View All Patients
+                  View My Patients
               </button>
 
               <button onClick={() => navigate('/create-template')} className="btn-primary" style={{marginBottom: '20px', backgroundColor: '#3b82f6'}}>
