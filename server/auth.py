@@ -23,9 +23,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # 'tokenUrl' tells Swagger UI where to send the username/password to get a token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-
 # --- UTILITY FUNCTIONS ---
-
 def hash_password(password: str) -> str:
     """
     Hashes a plain password using bcrypt.
@@ -33,14 +31,12 @@ def hash_password(password: str) -> str:
     """
     return pwd_context.hash(password)
 
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verifies a plain password against the stored hash.
     It re-hashes the plain password and compares the result.
     """
     return pwd_context.verify(plain_password, hashed_password)
-
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """
@@ -57,9 +53,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-
 # --- DEPENDENCY (The Guard) ---
-
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
     This function validates the token sent in the request header.

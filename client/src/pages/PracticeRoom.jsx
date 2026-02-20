@@ -4,7 +4,11 @@ import axios from 'axios'
 import '../App.css'
 
 function PracticeRoom() {
+  // We keep 'sessionId' from useParams so we don't break App.jsx routes,
+  // but logically this is now our 'assignmentId'
   const { sessionId } = useParams()
+  const assignmentId = sessionId
+
   const navigate = useNavigate()
   const location = useLocation()
   const { targetSound } = location.state || { targetSound: 's' }
@@ -18,9 +22,8 @@ function PracticeRoom() {
   // Recording State
   const [isRecording, setIsRecording] = useState(false)
 
-  // NEW: Store recordings by Word ID (Dictionary: { wordId: { url, blob } })
+  // Store recordings by Word ID (Dictionary: { wordId: { url, blob } })
   const [recordingsMap, setRecordingsMap] = useState({})
-
 
   // Refs
   const mediaRecorderRef = useRef(null)
@@ -32,7 +35,9 @@ function PracticeRoom() {
         const token = localStorage.getItem('token')
         const headers = { Authorization: `Bearer ${token}` }
 
-        const response = await axios.get(`http://127.0.0.1:8000/practice/words/${targetSound}`, { headers })
+        // CHANGED: Now fetching the EXACT words linked to this specific assignment
+        const response = await axios.get(`http://127.0.0.1:8000/practice/assignments/${assignmentId}/words`, { headers })
+
         setWords(response.data)
         setLoading(false)
 
@@ -43,7 +48,7 @@ function PracticeRoom() {
       }
     }
     fetchWords()
-  }, [targetSound])
+  }, [assignmentId])
 
   // Helper to get current word's recording
   const currentWord = words[currentIndex]
@@ -53,7 +58,7 @@ function PracticeRoom() {
   // Check if every word fetched from the DB has a corresponding entry in our recordingsMap
   const isSessionComplete = words.length > 0 && Object.keys(recordingsMap).length === words.length;
 
-const handleSubmitSession = async () => {
+  const handleSubmitSession = async () => {
     // 1. Ask for confirmation
     if (!window.confirm("Are you sure you want to submit all recordings?")) return
 
@@ -72,11 +77,10 @@ const handleSubmitSession = async () => {
 
         const formData = new FormData()
         formData.append('file', recordingData.blob, `recording_${word.id}.wav`)
-        formData.append('session_id', sessionId)
 
-        // --- NEW LINE HERE ---
-        formData.append('word_id', word.id) // אנחנו שולחים את ה-ID של המילה לשרת
-        // ---------------------
+        // CHANGED: Sending assignment_id instead of session_id
+        formData.append('assignment_id', assignmentId)
+        formData.append('word_id', word.id)
 
         return axios.post('http://127.0.0.1:8000/recordings/upload', formData, { headers })
       })
@@ -92,8 +96,8 @@ const handleSubmitSession = async () => {
       alert("❌ Something went wrong while uploading. Please try again.")
     }
   }
-  // --- RECORDING LOGIC ---
 
+  // --- RECORDING LOGIC ---
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -156,7 +160,7 @@ const handleSubmitSession = async () => {
 
   if (loading) return <div className="card-container"><h3>Loading words...</h3></div>
   if (error) return <div className="card-container"><h3 className="error-msg">{error}</h3></div>
-  if (words.length === 0) return <div className="card-container"><h3>No words found.</h3></div>
+  if (words.length === 0) return <div className="card-container"><h3>No words found in this template.</h3></div>
 
   const imageUrl = `http://127.0.0.1:8000${currentWord.image_url}`
 
@@ -228,7 +232,7 @@ const handleSubmitSession = async () => {
 
       </div>
 
-{/* --- FOOTER AREA --- */}
+      {/* --- FOOTER AREA --- */}
       <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
         {/* Navigation Buttons Row */}
@@ -271,8 +275,8 @@ const handleSubmitSession = async () => {
               onClick={handleSubmitSession}
               disabled={!isSessionComplete}
               style={{
-                backgroundColor: isSessionComplete ? '#10b981' : '#f3f4f6', // Green or very light gray
-                color: isSessionComplete ? 'white' : '#9ca3af', // White text or gray text
+                backgroundColor: isSessionComplete ? '#10b981' : '#f3f4f6',
+                color: isSessionComplete ? 'white' : '#9ca3af',
                 border: isSessionComplete ? 'none' : '1px dashed #d1d5db', // Dashed border when locked
                 padding: '12px 30px',
                 fontSize: '1rem',
@@ -282,14 +286,15 @@ const handleSubmitSession = async () => {
                 fontWeight: 'bold',
                 boxShadow: isSessionComplete ? '0 4px 6px -1px rgba(16, 185, 129, 0.4)' : 'none',
                 width: '100%',
-                maxWidth: '300px' // Prevent it from being too wide
+                maxWidth: '300px'
               }}
             >
               {isSessionComplete ? "✅ Submit All Recordings" : `🎤 Record ${words.length - Object.keys(recordingsMap).length} more to finish`}
             </button>
         </div>
 
-      </div>    </div>
+      </div>
+    </div>
   )
 }
 

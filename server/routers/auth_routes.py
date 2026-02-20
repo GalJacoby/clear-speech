@@ -7,11 +7,9 @@ from datetime import timedelta
 import database
 import models
 import schemas
-import auth  # This is your utils file (auth.py)
+import auth
 
-# Create the router
 router = APIRouter(tags=["Authentication"])
-
 
 @router.post("/register/clinician", response_model=schemas.UserOut)
 def register_clinician(user_data: schemas.UserCreate, db: Session = Depends(database.get_db)):
@@ -33,7 +31,6 @@ def register_clinician(user_data: schemas.UserCreate, db: Session = Depends(data
     db.commit()
     db.refresh(new_user)
     return new_user
-
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):

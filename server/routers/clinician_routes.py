@@ -1,7 +1,8 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-import uuid
 
 import database
 import models
@@ -50,7 +51,6 @@ def create_patient(
 
     return new_patient_user
 
-
 @router.get("/my-patients", response_model=List[schemas.PatientOut])
 def get_my_patients(
         db: Session = Depends(database.get_db),
@@ -62,15 +62,16 @@ def get_my_patients(
     my_patients = db.query(models.Patient).filter(models.Patient.clinician_id == current_user.id).all()
     return my_patients
 
-@router.get("/patients/{patient_id}/sessions", response_model=List[schemas.PracticeSessionOut])
-def get_patient_sessions(
-        patient_id: str,
+@router.get("/patients/{patient_id}/assignments", response_model=List[schemas.PatientAssignmentOut])
+def get_patient_assignments(
+        patient_id: uuid.UUID,
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
+    """Fetches all exercise assignments for a specific patient."""
     # 1. Verify user is a clinician
     if current_user.role != "clinician":
-        raise HTTPException(status_code=403, detail="Only clinicians can view patient details.")
+        raise HTTPException(status_code=403, detail="Only clinicians can view patient assignments.")
 
     # 2. Verify the patient belongs to this clinician
     patient = db.query(models.Patient).filter(
@@ -81,9 +82,9 @@ def get_patient_sessions(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found or not linked to you.")
 
-    # 3. Fetch all practice sessions for this patient
-    sessions = db.query(models.PracticeSession).filter(
-        models.PracticeSession.patient_id == patient_id
+    # 3. Fetch the assignments instead of the old practice sessions
+    assignments = db.query(models.PatientAssignment).filter(
+        models.PatientAssignment.patient_id == patient_id
     ).all()
 
-    return sessions
+    return assignments

@@ -27,26 +27,41 @@ CREATE TABLE word_bank (
     difficulty INTEGER CHECK (difficulty BETWEEN 1 AND 5)
 );
 
-CREATE TABLE practice_sessions (
+-- 1. Exercise Templates (The generic practice created by a clinician)
+CREATE TABLE exercise_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID REFERENCES users(id),
-    clinician_id UUID REFERENCES users(id),
-    target_sound VARCHAR,
-    title VARCHAR,
-    status VARCHAR,
+    title VARCHAR NOT NULL,
+    target_sound VARCHAR NOT NULL,
+    created_by_clinician_id UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 2. Template Words (Many-to-Many junction table linking templates to words)
+CREATE TABLE template_words (
+    template_id UUID REFERENCES exercise_templates(id) ON DELETE CASCADE,
+    word_id INTEGER REFERENCES word_bank(id) ON DELETE CASCADE,
+    PRIMARY KEY (template_id, word_id)
+);
 
+-- 3. Patient Assignments (Assigning a template to a specific patient)
+CREATE TABLE patient_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID REFERENCES users(id) NOT NULL,
+    clinician_id UUID REFERENCES users(id) NOT NULL,
+    template_id UUID REFERENCES exercise_templates(id) NOT NULL,
+    status VARCHAR DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. Recordings (The patient's actual audio submissions)
 CREATE TABLE recordings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID REFERENCES users(id),
-    clinician_id UUID REFERENCES users(id),
-    session_id UUID REFERENCES practice_sessions(id),
-    target_sound VARCHAR,
-    file_path VARCHAR UNIQUE,
+    patient_id UUID REFERENCES users(id) NOT NULL,
+    clinician_id UUID REFERENCES users(id) NOT NULL,
+    assignment_id UUID REFERENCES patient_assignments(id) NOT NULL,
+    target_sound VARCHAR NOT NULL,
+    file_path VARCHAR UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_reviewed BOOLEAN DEFAULT FALSE,
     word_id INTEGER REFERENCES word_bank(id) NOT NULL
-
 );

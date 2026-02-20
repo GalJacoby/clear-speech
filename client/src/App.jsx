@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import PracticeRoom from './pages/PracticeRoom'
 import PatientManagement from './pages/PatientManagement'
 import PatientDetails from './pages/PatientDetails'
+import CreateTemplate from './pages/CreateTemplate'
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'))
@@ -19,6 +20,7 @@ function App() {
         <Route path="/practice/:sessionId" element={token ? <PracticeRoom /> : <Navigate to="/login" />} />
         <Route path="/patients" element={token ? <PatientManagement /> : <Navigate to="/login" />} />
         <Route path="/patients/:patientId" element={token ? <PatientDetails /> : <Navigate to="/login" />} />
+        <Route path="/create-template" element={<CreateTemplate />} />
         <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
       </Routes>
     </BrowserRouter>

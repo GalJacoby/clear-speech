@@ -11,7 +11,6 @@ router = APIRouter(
     tags=["Patient Area"]
 )
 
-
 @router.get("/me", response_model=schemas.PatientOut)
 def get_my_patient_profile(
         db: Session = Depends(database.get_db),

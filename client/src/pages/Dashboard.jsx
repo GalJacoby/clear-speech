@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
-import Login from "./Login.jsx";
 
 function Dashboard({ setToken }) {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
-  const [sessions, setSessions] = useState([])
+
+  // CHANGED: Renamed sessions to assignments to match our new logic
+  const [assignments, setAssignments] = useState([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -26,8 +27,9 @@ function Dashboard({ setToken }) {
         setUser(currentUser)
 
         if (currentUser.role === 'patient') {
-          const sessionsResponse = await axios.get('http://127.0.0.1:8000/practice/patient/sessions', { headers })
-          setSessions(sessionsResponse.data)
+          // CHANGED: Fetching from the new assignments endpoint
+          const assignmentsResponse = await axios.get('http://127.0.0.1:8000/practice/patient/assignments', { headers })
+          setAssignments(assignmentsResponse.data)
         }
 
       } catch (err) {
@@ -61,31 +63,38 @@ function Dashboard({ setToken }) {
 
       {error && <p className="error-msg">{error}</p>}
 
+      {/* --- PATIENT PANEL --- */}
       {user.role === 'patient' && (
         <div style={{ textAlign: 'left', marginTop: '20px' }}>
           <h3>Your Missions:</h3>
-          {sessions.length === 0 ? (
-            <p>No active sessions.</p>
+          {assignments.length === 0 ? (
+            <p>No active missions right now.</p>
           ) : (
             <ul style={{ padding: 0 }}>
-              {sessions.map((session, index) => (
-                <li key={session.id || index} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {assignments.map((assignment, index) => (
+                <li key={assignment.id || index} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <div>
-                    🔊 <strong>Target:</strong> {session.target_sound} |
-                    ⏳ <strong>Status:</strong> {session.status}
+                    {/* NEW: Displaying the template title pulled from the backend */}
+                    <strong style={{ display: 'block', fontSize: '1.1rem', color: '#111827' }}>
+                      {assignment.template_title || "Practice Session"}
+                    </strong>
+                    <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                      🔊 Sound: {assignment.target_sound} | ⏳ Status: {assignment.status}
+                    </span>
                   </div>
 
-                  {/* 4. UPDATE: Pass the target_sound in the 'state' object */}
                   <button
-                    onClick={() => navigate(`/practice/${session.id}`, { state: { targetSound: session.target_sound } })}
+                    // Still navigating to practice room, but now passing the assignment.id
+                    onClick={() => navigate(`/practice/${assignment.id}`, { state: { targetSound: assignment.target_sound } })}
                     style={{
-                      padding: '5px 15px',
+                      padding: '8px 20px',
                       backgroundColor: '#10b981',
                       color: 'white',
                       border: 'none',
                       borderRadius: '5px',
                       cursor: 'pointer',
-                      fontWeight: 'bold'
+                      fontWeight: 'bold',
+                      marginLeft: '15px'
                     }}
                   >
                     Start
@@ -98,21 +107,27 @@ function Dashboard({ setToken }) {
         </div>
       )}
 
-{user.role === 'clinician' && (
-        <div style={{ textAlign: 'left', marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <h3>Clinician Panel</h3>
-          <p>Manage your patients and assign practice sessions.</p>
-          <button
-            onClick={() => navigate('/patients')}
-            className="btn-primary"
-            style={{ width: '100%' }}
-          >
-            View All Patients
-          </button>
-        </div>
+      {/* --- CLINICIAN PANEL --- */}
+      {user.role === 'clinician' && (
+          <div style={{textAlign: 'left', marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px'}}>
+              <h3>Clinician Panel</h3>
+              <p>Manage your patients and assign practice sessions.</p>
+
+              <button
+                  onClick={() => navigate('/patients')}
+                  className="btn-primary"
+                  style={{width: '100%'}}
+              >
+                  View All Patients
+              </button>
+
+              <button onClick={() => navigate('/create-template')} className="btn-primary" style={{marginBottom: '20px', backgroundColor: '#3b82f6'}}>
+                  ➕ Create New Practice Template
+              </button>
+          </div>
       )}
 
-      <button onClick={handleLogout} className="btn-danger">Logout</button>
+      <button onClick={handleLogout} className="btn-danger" style={{ marginTop: '20px' }}>Logout</button>
     </div>
   )
 }

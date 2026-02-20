@@ -3,7 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 
-// --- NEW COMPONENT: Secure Audio Player ---
 // This component handles fetching audio with the Authorization header
 const SecureAudioPlayer = ({ recordingId }) => {
   const [audioSrc, setAudioSrc] = useState(null)
@@ -41,7 +40,6 @@ const SecureAudioPlayer = ({ recordingId }) => {
   return <audio controls src={audioSrc} style={{ width: '100%' }} />
 }
 
-
 function PatientDetails() {
   const { patientId } = useParams()
   const navigate = useNavigate()
@@ -50,42 +48,42 @@ function PatientDetails() {
   // Get patient info passed via navigation state
   const patient = location.state?.patient || { full_name: 'Patient' }
 
-  const [selectedSessionId, setSelectedSessionId] = useState(null)
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(null)
   const [recordings, setRecordings] = useState([])
   const [isReviewLoading, setIsReviewLoading] = useState(false)
 
-  const [sessions, setSessions] = useState([])
+  const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const fetchPatientSessions = async () => {
+    const fetchPatientAssignments = async () => {
       try {
         const token = localStorage.getItem('token')
         const headers = { Authorization: `Bearer ${token}` }
 
-        const response = await axios.get(`http://127.0.0.1:8000/clinician/patients/${patientId}/sessions`, { headers })
+        const response = await axios.get(`http://127.0.0.1:8000/clinician/patients/${patientId}/assignments`, { headers })
 
-        setSessions(response.data)
+        setAssignments(response.data)
         setLoading(false)
       } catch (err) {
         console.error("Fetch error:", err)
-        setError("Could not load patient sessions.")
+        setError("Could not load patient assignments.")
         setLoading(false)
       }
     }
-    fetchPatientSessions()
+    fetchPatientAssignments()
   }, [patientId])
 
-  // Function to fetch recordings for a specific session
-  const handleReviewAudio = async (sessionId) => {
-    // Check if we are clicking the same session to toggle it off
-    if (selectedSessionId === sessionId) {
-        setSelectedSessionId(null)
+  // Function to fetch recordings for a specific assignment
+  const handleReviewAudio = async (assignmentId) => {
+    // Check if we are clicking the same assignment to toggle it off
+    if (selectedAssignmentId === assignmentId) {
+        setSelectedAssignmentId(null)
         return
     }
 
-    setSelectedSessionId(sessionId)
+    setSelectedAssignmentId(assignmentId)
     setIsReviewLoading(true)
     setRecordings([]) // Clear previous recordings
 
@@ -93,13 +91,14 @@ function PatientDetails() {
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      const response = await axios.get(`http://127.0.0.1:8000/recordings/session/${sessionId}`, { headers })
+      // CHANGED: Endpoint updated to match the new recordings router
+      const response = await axios.get(`http://127.0.0.1:8000/recordings/assignment/${assignmentId}`, { headers })
 
       setRecordings(response.data)
       setIsReviewLoading(false)
     } catch (err) {
       console.error("Error fetching recordings:", err)
-      alert("Could not load recordings for this session.")
+      alert("Could not load recordings for this assignment.")
       setIsReviewLoading(false)
     }
   }
@@ -111,25 +110,25 @@ function PatientDetails() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div style={{ textAlign: 'left' }}>
           <h1 style={{ margin: 0, color: '#111827' }}>{patient.full_name}'s Profile</h1>
-          <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Review progress and assigned sessions</p>
+          <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Review progress and assigned missions</p>
         </div>
         <button onClick={() => navigate('/patients')} className="btn-secondary">Back to Patients List</button>
       </div>
 
-      {loading && <p>Loading sessions...</p>}
+      {loading && <p>Loading assignments...</p>}
       {error && <p className="error-msg">{error}</p>}
 
-      {/* Sessions List */}
+      {/* Assignments List */}
       {!loading && !error && (
         <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', textAlign: 'left' }}>
           <h2 style={{ marginTop: 0, borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>Assigned Missions</h2>
 
-          {sessions.length === 0 ? (
-            <p style={{ color: '#6b7280' }}>No sessions assigned yet.</p>
+          {assignments.length === 0 ? (
+            <p style={{ color: '#6b7280' }}>No missions assigned yet.</p>
           ) : (
             <ul style={{ padding: 0, listStyle: 'none' }}>
-              {sessions.map(session => (
-                  <li key={session.id} style={{
+              {assignments.map(assignment => (
+                  <li key={assignment.id} style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
@@ -137,26 +136,27 @@ function PatientDetails() {
                     borderBottom: '1px dashed #e5e7eb'
                   }}>
                     <div>
-                      <h4 style={{margin: '0 0 5px 0', color: '#1f2937'}}>{session.title || 'Practice Session'}</h4>
+                      {/* CHANGED: Using template_title from the backend schema */}
+                      <h4 style={{margin: '0 0 5px 0', color: '#1f2937'}}>{assignment.template_title || 'Practice Mission'}</h4>
                       <span style={{fontSize: '0.85rem', color: '#6b7280', display: 'flex', gap: '10px'}}>
-                      <span>🎯 Sound: <strong>{session.target_sound}</strong></span>
+                      <span>🎯 Sound: <strong>{assignment.target_sound}</strong></span>
                       <span>|</span>
-                      <span>⏳ Status: {session.status || 'Pending'}</span>
+                      <span>⏳ Status: {assignment.status || 'Pending'}</span>
                     </span>
                     </div>
 
                     <button
-                        onClick={() => handleReviewAudio(session.id)}
+                        onClick={() => handleReviewAudio(assignment.id)}
                         className="btn-secondary"
                         style={{
                           fontSize: '0.8rem',
-                          backgroundColor: selectedSessionId === session.id ? '#3b82f6' : 'white',
-                          color: selectedSessionId === session.id ? 'white' : '#374151',
+                          backgroundColor: selectedAssignmentId === assignment.id ? '#3b82f6' : 'white',
+                          color: selectedAssignmentId === assignment.id ? 'white' : '#374151',
                           border: '1px solid #d1d5db',
                           cursor: 'pointer'
                         }}
                     >
-                      {selectedSessionId === session.id ? "Close Review" : "Review Audio"}
+                      {selectedAssignmentId === assignment.id ? "Close Review" : "Review Audio"}
                     </button>
                   </li>
               ))}
@@ -166,13 +166,13 @@ function PatientDetails() {
       )}
 
       {/* RECORDINGS REVIEW SECTION */}
-      {selectedSessionId && (
+      {selectedAssignmentId && (
         <div style={{ marginTop: '30px', backgroundColor: '#f9fafb', borderRadius: '12px', padding: '20px', border: '1px solid #d1d5db', position: 'relative' }}>
 
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-              <h3 style={{margin: 0}}>Session Recordings 🎙️</h3>
+              <h3 style={{margin: 0}}>Assignment Recordings 🎙️</h3>
               <button
-                onClick={() => setSelectedSessionId(null)}
+                onClick={() => setSelectedAssignmentId(null)}
                 style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#6b7280'}}
                 title="Close"
               >
@@ -182,19 +182,16 @@ function PatientDetails() {
 
           {isReviewLoading && <p>Loading audio files...</p>}
 
-          {!isReviewLoading && recordings.length === 0 && <p>No recordings found for this session.</p>}
+          {!isReviewLoading && recordings.length === 0 && <p>No recordings found for this assignment.</p>}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {recordings.map((rec) => (
               <div key={rec.id} style={{ backgroundColor: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
 
-                {/* --- THIS IS THE UPDATED PART --- */}
                 <div style={{ marginBottom: '10px', fontWeight: 'bold', fontSize: '1.1rem', color: '#111827' }}>
                   Word: <span style={{ color: '#2563eb' }}>{rec.word_text}</span>
                 </div>
-                {/* -------------------------------- */}
 
-                {/* USE THE NEW SECURE PLAYER HERE */}
                 <SecureAudioPlayer recordingId={rec.id} />
 
               </div>
