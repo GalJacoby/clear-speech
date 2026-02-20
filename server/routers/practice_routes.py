@@ -150,6 +150,32 @@ def get_my_assignments(
     return assignments
 
 
+# --- NEW ROUTE: Mark assignment as completed ---
+@router.patch("/assignments/{assignment_id}/complete", response_model=schemas.PatientAssignmentOut)
+def complete_assignment(
+        assignment_id: uuid.UUID,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """Marks a patient's assignment as completed."""
+    # 1. Fetch the assignment
+    assignment = db.query(models.PatientAssignment).filter(models.PatientAssignment.id == str(assignment_id)).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found.")
+
+    # 2. Security Check (Only the assigned patient can complete it)
+    if current_user.id != assignment.patient_id:
+        raise HTTPException(status_code=403, detail="Not authorized to complete this assignment.")
+
+    # 3. Update the status
+    assignment.status = "completed"
+    db.commit()
+    db.refresh(assignment)
+
+    return assignment
+
+
 # ==========================================
 # 4. PRACTICE ROOM DATA (Fetching words for an assignment)
 # ==========================================

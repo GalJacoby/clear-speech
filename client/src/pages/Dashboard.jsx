@@ -27,9 +27,15 @@ function Dashboard({ setToken }) {
         setUser(currentUser)
 
         if (currentUser.role === 'patient') {
-          // CHANGED: Fetching from the new assignments endpoint
+          // Fetching from the new assignments endpoint
           const assignmentsResponse = await axios.get('http://127.0.0.1:8000/practice/patient/assignments', { headers })
-          setAssignments(assignmentsResponse.data)
+
+          // CHANGED: Filter assignments to only show the ones that are still "pending"
+          const activeMissions = assignmentsResponse.data.filter(
+            assignment => assignment.status === 'pending'
+          )
+
+          setAssignments(activeMissions)
         }
 
       } catch (err) {
@@ -74,7 +80,7 @@ function Dashboard({ setToken }) {
               {assignments.map((assignment, index) => (
                 <li key={assignment.id || index} className="list-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <div>
-                    {/* NEW: Displaying the template title pulled from the backend */}
+                    {/* Displaying the template title pulled from the backend */}
                     <strong style={{ display: 'block', fontSize: '1.1rem', color: '#111827' }}>
                       {assignment.template_title || "Practice Session"}
                     </strong>

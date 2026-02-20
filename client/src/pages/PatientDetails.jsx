@@ -91,7 +91,7 @@ function PatientDetails() {
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      // CHANGED: Endpoint updated to match the new recordings router
+      // Endpoint updated to match the new recordings router
       const response = await axios.get(`http://127.0.0.1:8000/recordings/assignment/${assignmentId}`, { headers })
 
       setRecordings(response.data)
@@ -136,7 +136,7 @@ function PatientDetails() {
                     borderBottom: '1px dashed #e5e7eb'
                   }}>
                     <div>
-                      {/* CHANGED: Using template_title from the backend schema */}
+                      {/* Using template_title from the backend schema */}
                       <h4 style={{margin: '0 0 5px 0', color: '#1f2937'}}>{assignment.template_title || 'Practice Mission'}</h4>
                       <span style={{fontSize: '0.85rem', color: '#6b7280', display: 'flex', gap: '10px'}}>
                       <span>🎯 Sound: <strong>{assignment.target_sound}</strong></span>
@@ -145,19 +145,27 @@ function PatientDetails() {
                     </span>
                     </div>
 
-                    <button
-                        onClick={() => handleReviewAudio(assignment.id)}
-                        className="btn-secondary"
-                        style={{
-                          fontSize: '0.8rem',
-                          backgroundColor: selectedAssignmentId === assignment.id ? '#3b82f6' : 'white',
-                          color: selectedAssignmentId === assignment.id ? 'white' : '#374151',
-                          border: '1px solid #d1d5db',
-                          cursor: 'pointer'
-                        }}
-                    >
-                      {selectedAssignmentId === assignment.id ? "Close Review" : "Review Audio"}
-                    </button>
+                    {/* CHANGED: Conditionally render the button based on status */}
+                    {assignment.status === 'completed' ? (
+                      <button
+                          onClick={() => handleReviewAudio(assignment.id)}
+                          className="btn-secondary"
+                          style={{
+                            fontSize: '0.8rem',
+                            backgroundColor: selectedAssignmentId === assignment.id ? '#3b82f6' : 'white',
+                            color: selectedAssignmentId === assignment.id ? 'white' : '#374151',
+                            border: '1px solid #d1d5db',
+                            cursor: 'pointer'
+                          }}
+                      >
+                        {selectedAssignmentId === assignment.id ? "Close Review" : "Review Audio"}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: '#9ca3af', fontStyle: 'italic', paddingRight: '10px' }}>
+                        Waiting for patient...
+                      </span>
+                    )}
+
                   </li>
               ))}
             </ul>

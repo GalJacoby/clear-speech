@@ -35,7 +35,7 @@ function PracticeRoom() {
         const token = localStorage.getItem('token')
         const headers = { Authorization: `Bearer ${token}` }
 
-        // CHANGED: Now fetching the EXACT words linked to this specific assignment
+        // Fetching the EXACT words linked to this specific assignment
         const response = await axios.get(`http://127.0.0.1:8000/practice/assignments/${assignmentId}/words`, { headers })
 
         setWords(response.data)
@@ -65,8 +65,7 @@ function PracticeRoom() {
     try {
       const token = localStorage.getItem('token')
       const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data'
+        'Authorization': `Bearer ${token}`
       }
 
       // 2. Create an array of upload promises
@@ -78,15 +77,21 @@ function PracticeRoom() {
         const formData = new FormData()
         formData.append('file', recordingData.blob, `recording_${word.id}.wav`)
 
-        // CHANGED: Sending assignment_id instead of session_id
+        // Sending assignment_id instead of session_id
         formData.append('assignment_id', assignmentId)
         formData.append('word_id', word.id)
 
-        return axios.post('http://127.0.0.1:8000/recordings/upload', formData, { headers })
+        // Need multipart/form-data specifically for the file uploads
+        return axios.post('http://127.0.0.1:8000/recordings/upload', formData, {
+            headers: { ...headers, 'Content-Type': 'multipart/form-data' }
+        })
       })
 
       // 3. Wait for ALL uploads to finish
       await Promise.all(uploadPromises)
+
+      // 4. CHANGED: Mark the assignment as COMPLETED in the database
+      await axios.patch(`http://127.0.0.1:8000/practice/assignments/${assignmentId}/complete`, {}, { headers })
 
       alert("✅ Great job! All recordings submitted successfully.")
       navigate('/dashboard')
