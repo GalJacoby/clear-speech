@@ -20,28 +20,38 @@ function PatientManagement() {
   const [selectedTemplateIds, setSelectedTemplateIds] = useState([])
   const [modalMessage, setModalMessage] = useState('')
 
-  // Fetch both patients and available templates on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem('token')
-        const headers = { Authorization: `Bearer ${token}` }
+  // States for the Create Patient Modal
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    date_of_birth: '',
+    target_sounds: ''
+  })
+  const [createMessage, setCreateMessage] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
 
-        // Fetch Patients
-        const patientsRes = await axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers })
-        setPatients(patientsRes.data)
+  const fetchData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { Authorization: `Bearer ${token}` }
 
-        // Fetch Clinician's Templates
-        const templatesRes = await axios.get('http://127.0.0.1:8000/practice/templates', { headers })
-        setTemplates(templatesRes.data)
-
-        setLoading(false)
-      } catch (err) {
-        console.error("Fetch error:", err)
-        setError("Could not load data.")
-        setLoading(false)
-      }
+      const [patientsRes, templatesRes] = await Promise.all([
+        axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers }),
+        axios.get('http://127.0.0.1:8000/practice/templates', { headers })
+      ])
+      setPatients(patientsRes.data)
+      setTemplates(templatesRes.data)
+    } catch (err) {
+      console.error("Fetch error:", err)
+      setError("Could not load data.")
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchData()
   }, [])
 
@@ -56,6 +66,49 @@ function PatientManagement() {
   const closeAssignModal = () => {
     setIsModalOpen(false)
     setSelectedPatient(null)
+  }
+
+  // Create Patient modal
+  const openCreateModal = () => {
+    setCreateForm({ email: '', password: '', full_name: '', date_of_birth: '', target_sounds: '' })
+    setCreateMessage('')
+    setIsCreateModalOpen(true)
+  }
+
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false)
+  }
+
+  const handleCreatePatient = async (e) => {
+    e.preventDefault()
+    setCreateMessage('')
+    if (!createForm.email?.trim() || !createForm.password?.trim() || !createForm.full_name?.trim()) {
+      setCreateMessage('Please fill in email, password, and full name.')
+      return
+    }
+    setCreateLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { Authorization: `Bearer ${token}` }
+      const payload = {
+        email: createForm.email.trim(),
+        password: createForm.password,
+        full_name: createForm.full_name.trim(),
+        date_of_birth: createForm.date_of_birth || null,
+        target_sounds: createForm.target_sounds
+          ? createForm.target_sounds.split(',').map(s => s.trim()).filter(Boolean)
+          : []
+      }
+      await axios.post('http://127.0.0.1:8000/clinician/patients', payload, { headers })
+      setCreateMessage('Patient created successfully.')
+      await fetchData()
+      setTimeout(() => closeCreateModal(), 1500)
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setCreateMessage(detail || 'Failed to create patient.')
+    } finally {
+      setCreateLoading(false)
+    }
   }
 
   // Handle checking/unchecking a template
@@ -127,14 +180,22 @@ function PatientManagement() {
           <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Monitor and manage all your patients</p>
         </div>
 
-        {/* CHANGED: Fixed width issue and changed color to a distinct navigation gray/blue */}
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="btn-primary"
-          style={{ backgroundColor: '#4b5563', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
-        >
-          Back to Dashboard
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={openCreateModal}
+            className="btn-primary"
+            style={{ backgroundColor: '#059669', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
+          >
+            Add Patient
+          </button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="btn-primary"
+            style={{ backgroundColor: '#4b5563', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
+          >
+            Back to Dashboard
+          </button>
+        </div>
       </div>
 
       {/* Patients Grid */}
@@ -264,6 +325,107 @@ function PatientManagement() {
                 {modalMessage}
               </div>
             )}
+
+          </div>
+        </div>
+      )}
+
+      {/* Create Patient Modal */}
+      {isCreateModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '420px', textAlign: 'left', position: 'relative' }}>
+
+            <button
+              onClick={closeCreateModal}
+              disabled={createLoading}
+              style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}
+            >
+              ✖
+            </button>
+
+            <h2 style={{ marginTop: 0 }}>Add New Patient</h2>
+            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '20px' }}>Create a patient account linked to you. They will use the email and password to log in.</p>
+
+            <form onSubmit={handleCreatePatient} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '0.9rem' }}>Full name *</label>
+                <input
+                  type="text"
+                  value={createForm.full_name}
+                  onChange={e => setCreateForm(f => ({ ...f, full_name: e.target.value }))}
+                  placeholder="e.g. Alex Smith"
+                  required
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '0.9rem' }}>Email *</label>
+                <input
+                  type="email"
+                  value={createForm.email}
+                  onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="patient@example.com"
+                  required
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '0.9rem' }}>Password *</label>
+                <input
+                  type="password"
+                  value={createForm.password}
+                  onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="••••••••"
+                  required
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '0.9rem' }}>Date of birth (optional)</label>
+                <input
+                  type="date"
+                  value={createForm.date_of_birth}
+                  onChange={e => setCreateForm(f => ({ ...f, date_of_birth: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 'bold', fontSize: '0.9rem' }}>Target sounds (optional)</label>
+                <input
+                  type="text"
+                  value={createForm.target_sounds}
+                  onChange={e => setCreateForm(f => ({ ...f, target_sounds: e.target.value }))}
+                  placeholder="e.g. s, r, th"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#6b7280' }}>Comma-separated list of target sounds</p>
+              </div>
+
+              {createMessage && (
+                <div style={{
+                  padding: '10px',
+                  borderRadius: '8px',
+                  backgroundColor: createMessage.includes('success') ? '#f0fdf4' : '#fef2f2',
+                  color: createMessage.includes('success') ? '#15803d' : '#b91c1c',
+                  fontSize: '0.9rem'
+                }}>
+                  {createMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={createLoading}
+                style={{ marginTop: '8px', backgroundColor: '#059669' }}
+              >
+                {createLoading ? 'Creating...' : 'Create Patient'}
+              </button>
+            </form>
 
           </div>
         </div>
