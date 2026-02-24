@@ -41,7 +41,22 @@ function PatientManagement() {
         axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers }),
         axios.get('http://127.0.0.1:8000/practice/templates', { headers })
       ])
-      setPatients(patientsRes.data)
+
+      const fetchedPatients = patientsRes.data;
+
+      // Fetch assignments for each patient to count the completed ones
+      const patientsWithCounts = await Promise.all(fetchedPatients.map(async (patient) => {
+        try {
+          const assignRes = await axios.get(`http://127.0.0.1:8000/clinician/patients/${patient.user_id}/assignments`, { headers });
+          const completedCount = assignRes.data.filter(a => a.status === 'completed').length;
+          return { ...patient, completedCount };
+        } catch (err) {
+          console.error(`Could not fetch assignments for ${patient.full_name}`);
+          return { ...patient, completedCount: 0 };
+        }
+      }));
+
+      setPatients(patientsWithCounts)
       setTemplates(templatesRes.data)
     } catch (err) {
       console.error("Fetch error:", err)
@@ -101,7 +116,7 @@ function PatientManagement() {
       }
       await axios.post('http://127.0.0.1:8000/clinician/patients', payload, { headers })
       setCreateMessage('Patient created successfully.')
-      await fetchData()
+      await fetchData() // This will refresh the grid and the badges
       setTimeout(() => closeCreateModal(), 1500)
     } catch (err) {
       const detail = err.response?.data?.detail
@@ -160,6 +175,8 @@ function PatientManagement() {
       setModalMessage(errorMessage);
     } else {
       setModalMessage(`✅ ${selectedTemplateIds.length} Practice(s) assigned successfully!`)
+      // Refresh the data so assignments count stays accurate
+      await fetchData()
       // Close modal after 2 seconds
       setTimeout(() => {
         closeAssignModal()
@@ -204,7 +221,39 @@ function PatientManagement() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
           {patients.map(patient => (
-            <div key={patient.id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', textAlign: 'left' }}>
+            <div key={patient.id} style={{
+              position: 'relative', // CHANGED: Added relative positioning for the absolute badge
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '20px',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+              border: '1px solid #e5e7eb',
+              textAlign: 'left'
+            }}>
+
+              {/* Notification Badge for Completed Missions */}
+              {patient.completedCount > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  backgroundColor: '#ef4444', // Red color
+                  color: 'white',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+                title={`${patient.completedCount} mission(s) ready for review`}
+                >
+                  {patient.completedCount}
+                </div>
+              )}
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '1.5rem', fontWeight: 'bold' }}>

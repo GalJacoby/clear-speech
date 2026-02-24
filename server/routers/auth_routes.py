@@ -11,6 +11,7 @@ import auth
 
 router = APIRouter(tags=["Authentication"])
 
+# create new clinician
 @router.post("/register/clinician", response_model=schemas.UserOut)
 def register_clinician(user_data: schemas.UserCreate, db: Session = Depends(database.get_db)):
     # Check existing
@@ -50,12 +51,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     return {"access_token": access_token, "token_type": "bearer"}
 
+#     General endpoint to identify the logged-in user and their role.
+#     Accessible to ALL authenticated users.
 @router.get("/users/me")
 def get_current_user_identity(current_user: models.User = Depends(auth.get_current_user)):
-    """
-    General endpoint to identify the logged-in user and their role.
-    Accessible to ALL authenticated users.
-    """
     return {
         "id": current_user.id,
         "email": current_user.email,

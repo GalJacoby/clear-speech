@@ -16,6 +16,7 @@ app = FastAPI(title="ClearSpeech API")
 images_path = os.path.join(os.getcwd(), "images")
 app.mount("/images", StaticFiles(directory=images_path), name="images")
 
+#allows React sends requests to the server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"], # React app's address

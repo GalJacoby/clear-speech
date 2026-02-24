@@ -13,14 +13,13 @@ router = APIRouter(
     tags=["Practice Area"]
 )
 
-
 # ==========================================
 # 1. WORD BANK (For Clinician to choose from)
 # ==========================================
 
+# Fetches all words from the word bank to populate the clinician's selection screen.
 @router.get("/words")
 def get_all_words(db: Session = Depends(database.get_db)):
-    """Fetches all words from the word bank to populate the clinician's selection screen."""
     words = db.query(models.WordBank).all()
     if not words:
         raise HTTPException(status_code=404, detail="No words found in the database.")
@@ -31,13 +30,13 @@ def get_all_words(db: Session = Depends(database.get_db)):
 # 2. TEMPLATE MANAGEMENT (The Library)
 # ==========================================
 
+# Creates a new generic practice template and links the chosen words to it
 @router.post("/templates", response_model=schemas.ExerciseTemplateOut)
 def create_exercise_template(
         template_data: schemas.ExerciseTemplateCreate,
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
-    """Creates a new generic practice template and links the chosen words to it."""
     if current_user.role != "clinician":
         raise HTTPException(status_code=403, detail="Only clinicians can create templates.")
 
@@ -63,12 +62,12 @@ def create_exercise_template(
     return new_template
 
 
+# Gets all templates created by this clinician
 @router.get("/templates", response_model=List[schemas.ExerciseTemplateOut])
 def get_clinician_templates(
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
-    """Gets all templates created by this clinician."""
     if current_user.role != "clinician":
         raise HTTPException(status_code=403, detail="Only clinicians can view their template library.")
 
@@ -82,13 +81,13 @@ def get_clinician_templates(
 # 3. PATIENT ASSIGNMENTS (Assigning to Patient)
 # ==========================================
 
+# Assigns an existing template to a specific patient
 @router.post("/assignments", response_model=schemas.PatientAssignmentOut)
 def assign_template_to_patient(
         assignment_data: schemas.PatientAssignmentCreate,
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
-    """Assigns an existing template to a specific patient."""
     if current_user.role != "clinician":
         raise HTTPException(status_code=403, detail="Only clinicians can assign practices.")
 
@@ -134,12 +133,12 @@ def assign_template_to_patient(
     return new_assignment
 
 
+# For Patients: see all tasks assigned to them
 @router.get("/patient/assignments", response_model=List[schemas.PatientAssignmentOut])
 def get_my_assignments(
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
-    """For Patients: see all tasks assigned to them."""
     if current_user.role != "patient":
         raise HTTPException(status_code=403, detail="Only patients can view their assigned tasks.")
 
@@ -150,7 +149,7 @@ def get_my_assignments(
     return assignments
 
 
-# --- NEW ROUTE: Mark assignment as completed ---
+# --- Mark assignment as completed ---
 @router.patch("/assignments/{assignment_id}/complete", response_model=schemas.PatientAssignmentOut)
 def complete_assignment(
         assignment_id: uuid.UUID,
@@ -180,16 +179,14 @@ def complete_assignment(
 # 4. PRACTICE ROOM DATA (Fetching words for an assignment)
 # ==========================================
 
+#     When a patient clicks on an assignment, this endpoint goes through the assignment,
+#     finds the template, and returns the exact words selected by the clinician
 @router.get("/assignments/{assignment_id}/words")
 def get_words_for_assignment(
         assignment_id: uuid.UUID,
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
-    """
-    When a patient clicks on an assignment, this endpoint goes through the assignment,
-    finds the template, and returns the exact words selected by the clinician.
-    """
     # 1. Fetch the assignment
     assignment = db.query(models.PatientAssignment).filter(models.PatientAssignment.id == str(assignment_id)).first()
 

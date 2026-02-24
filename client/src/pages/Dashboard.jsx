@@ -119,13 +119,13 @@ function Dashboard({ setToken }) {
               <button
                   onClick={() => navigate('/patients')}
                   className="btn-primary"
-                  style={{width: '100%'}}
+                  style={{width: '100%', backgroundColor: '#3b82f6'}}
               >
                   View My Patients
               </button>
 
               <button onClick={() => navigate('/create-template')} className="btn-primary" style={{marginBottom: '20px', backgroundColor: '#3b82f6'}}>
-                  ➕ Create New Practice Template
+                   Create New Practice
               </button>
           </div>
       )}

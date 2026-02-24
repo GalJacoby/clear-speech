@@ -39,7 +39,7 @@ class PatientOut(BaseModel):
         from_attributes = True
 
 
-# --- NEW: Exercise Template Schemas (The Library) ---
+# --- Exercise Template Schemas (The Library) ---
 class ExerciseTemplateCreate(BaseModel):
     title: str
     target_sound: str
@@ -57,7 +57,7 @@ class ExerciseTemplateOut(BaseModel):
         from_attributes = True
 
 
-# --- NEW: Patient Assignment Schemas (Linking patient to template) ---
+# --- Patient Assignment Schemas (Linking patient to template) ---
 class PatientAssignmentCreate(BaseModel):
     patient_id: uuid.UUID
     template_id: uuid.UUID
@@ -79,12 +79,11 @@ class PatientAssignmentOut(BaseModel):
         from_attributes = True
 
 
-# --- UPDATED: Recording Schema ---
 class RecordingOut(BaseModel):
     id: uuid.UUID
     patient_id: uuid.UUID
     clinician_id: uuid.UUID
-    assignment_id: uuid.UUID  # CHANGED: Replaced session_id with assignment_id
+    assignment_id: uuid.UUID
     target_sound: str
     file_path: str
     created_at: datetime

@@ -84,7 +84,7 @@ function CreateTemplate() {
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0 }}>Create New Practice Template</h2>
+        <h2 style={{ margin: 0 }}>Create New Practice </h2>
 
         {/* CHANGED: Styled the Cancel button to match the navigation buttons */}
         <button
@@ -101,7 +101,7 @@ function CreateTemplate() {
         {/* Step 1: Basic Info */}
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
           <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Template Title:</label>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Practice Title:</label>
             <input
               type="text"
               required
@@ -127,7 +127,7 @@ function CreateTemplate() {
         {/* Step 2: Word Selection */}
         <div style={{ borderTop: '1px solid #eee', paddingTop: '20px' }}>
           <h3 style={{ marginBottom: '15px' }}>
-            Select Words from Bank ({selectedWordIds.length} selected)
+            Select Words ({selectedWordIds.length} selected)
           </h3>
 
           {loading && <p>Loading word bank...</p>}
@@ -163,7 +163,6 @@ function CreateTemplate() {
                      <div style={{ width: '80px', height: '80px', backgroundColor: '#f3f4f6', borderRadius: '5px', margin: '0 auto 10px auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No Img</div>
                   )}
                   <div style={{ fontWeight: 'bold' }}>{word.text}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>/{word.phonetic_trans}/</div>
                 </div>
               )
             })}
@@ -176,7 +175,7 @@ function CreateTemplate() {
         </div>
 
         <button type="submit" className="btn-primary" style={{ marginTop: '20px', width: '100%', padding: '12px', fontSize: '1.1rem', backgroundColor: '#3b82f6' }}>
-          💾 Save Practice Template
+          Save Practice Template
         </button>
 
       </form>
