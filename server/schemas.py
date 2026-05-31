@@ -51,6 +51,7 @@ class WordOut(BaseModel):
     image_url: Optional[str] = None
     audio_url: Optional[str] = None
     practice_type: str = 'text'
+    is_active: bool = True
     category: Optional[str] = None
     difficulty: Optional[int] = None
 
@@ -146,6 +147,7 @@ class PatientAssignmentOut(BaseModel):
     status: str
     score: Optional[int] = None
     completed_at: Optional[datetime] = None
+    is_archived: bool = False
     created_at: datetime
 
     # Virtual fields fetched from the template via @property in models.py

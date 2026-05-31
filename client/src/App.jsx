@@ -12,6 +12,7 @@ import CreateTemplate from './pages/CreateTemplate'
 import EditTemplate from './pages/EditTemplate'
 import Practices from './pages/Practices'
 import Schedule from './pages/Schedule'
+import ArchivedPractices from './pages/ArchivedPractices'
 
 function ClinicianLayout({ children, setToken }) {
   return (
@@ -37,6 +38,7 @@ function App() {
         <Route path="/create-template" element={token ? <ClinicianLayout setToken={setToken}><CreateTemplate /></ClinicianLayout> : <Navigate to="/login" />} />
         <Route path="/edit-template/:templateId" element={token ? <ClinicianLayout setToken={setToken}><EditTemplate /></ClinicianLayout> : <Navigate to="/login" />} />
         <Route path="/schedule" element={token ? <ClinicianLayout setToken={setToken}><Schedule /></ClinicianLayout> : <Navigate to="/login" />} />
+        <Route path="/patients/:patientId/archived" element={token ? <ClinicianLayout setToken={setToken}><ArchivedPractices /></ClinicianLayout> : <Navigate to="/login" />} />
         <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
       </Routes>
     </BrowserRouter>

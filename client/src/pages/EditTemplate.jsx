@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
+import { Trash2 } from 'lucide-react'
 import '../App.css'
 
 function imgSrc(imageUrl) {
@@ -23,10 +24,11 @@ function EditTemplate() {
   const [generatingAudio, setGeneratingAudio] = useState(new Set())
   const [recordingWordId, setRecordingWordId] = useState(null)
   const [isRecording, setIsRecording] = useState(false)
-  const mediaRecorderRef = useRef(null)
-  const audioChunksRef  = useRef([])
-  const streamRef       = useRef(null)
-  const isAbortedRef    = useRef(false)
+  const mediaRecorderRef  = useRef(null)
+  const audioChunksRef    = useRef([])
+  const streamRef         = useRef(null)
+  const isAbortedRef      = useRef(false)
+  const customBlobUrlsRef = useRef([])
   const [wordTypeMap,    setWordTypeMap]    = useState({})
   const [audioSourceMap, setAudioSourceMap] = useState({})
   const [aiAudioByWord,     setAiAudioByWord]     = useState({})
@@ -74,6 +76,12 @@ function EditTemplate() {
     )
   }
 
+  const resolveAudioSrc = (audioUrl) => {
+    if (!audioUrl) return null
+    if (audioUrl.startsWith('blob:') || audioUrl.startsWith('http')) return audioUrl
+    return `http://127.0.0.1:8000${audioUrl}`
+  }
+
   const playPreview = (wordId, audioUrl) => {
     if (audioPreviewRef.current) {
       audioPreviewRef.current.pause()
@@ -82,19 +90,25 @@ function EditTemplate() {
       audioPreviewRef.current = null
     }
     if (playingWordId === wordId) { setPlayingWordId(null); return }
-    const src = audioUrl.startsWith('http') ? audioUrl : `http://127.0.0.1:8000${audioUrl}`
+    const src = resolveAudioSrc(audioUrl)
+    if (!src) return
     console.log('[ClearSpeech] Playing audio source:', src)
     const a = new Audio(src)
     audioPreviewRef.current = a
     a.onended = () => { setPlayingWordId(null); audioPreviewRef.current = null }
+    a.onerror = () => {
+      console.warn('[ClearSpeech] Audio unavailable:', src)
+      setPlayingWordId(null)
+      audioPreviewRef.current = null
+      setAllWords(prev => prev.map(w => w.id === wordId ? { ...w, audio_url: null } : w))
+      setAiAudioByWord(prev => { const n = { ...prev }; delete n[wordId]; return n })
+    }
     a.play().catch(e => console.error('[ClearSpeech] Playback error:', e))
     setPlayingWordId(wordId)
   }
 
-  const handleSetAudioSource = (wordId, source) => {
-    if (isRecording && recordingWordId === wordId) {
-      abortRecording()
-    }
+  const handleSetAudioSource = async (wordId, source) => {
+    if (isRecording && recordingWordId === wordId) abortRecording()
     if (audioPreviewRef.current) {
       audioPreviewRef.current.pause()
       audioPreviewRef.current.src = ''
@@ -103,10 +117,39 @@ function EditTemplate() {
     }
     setPlayingWordId(null)
     setAudioSourceMap(prev => ({ ...prev, [wordId]: source }))
+
     if (source === 'ai' && aiAudioByWord[wordId]) {
       setAllWords(prev => prev.map(w => w.id === wordId ? { ...w, audio_url: aiAudioByWord[wordId] } : w))
+      // FIX: write AI URL back to DB so the next session doesn't load the custom recording
+      try {
+        const token = localStorage.getItem('token')
+        const word = allWords.find(w => w.id === wordId)
+        if (word) {
+          await axios.post(
+            'http://127.0.0.1:8000/practice/audio/generate',
+            { word_id: wordId, text: word.text },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        }
+      } catch (e) {
+        console.warn('[handleSetAudioSource] DB restore failed:', e)
+      }
     } else if (source === 'record' && customAudioByWord[wordId]) {
       setAllWords(prev => prev.map(w => w.id === wordId ? { ...w, audio_url: customAudioByWord[wordId] } : w))
+    }
+  }
+
+  const handleDeleteWord = async (wordId, wordText) => {
+    if (!window.confirm(`Delete "${wordText}" from the word bank? Existing practices that use this word will not be affected.`)) return
+    try {
+      const token = localStorage.getItem('token')
+      await axios.delete(`http://127.0.0.1:8000/practice/words/${wordId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setAllWords(prev => prev.filter(w => w.id !== wordId))
+      setSelectedWordIds(prev => prev.filter(id => id !== wordId))
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to delete word.')
     }
   }
 
@@ -153,7 +196,7 @@ function EditTemplate() {
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.onstop = () => {
         if (isAbortedRef.current) {
           streamRef.current = null
           stream.getTracks().forEach(t => t.stop())
@@ -161,13 +204,12 @@ function EditTemplate() {
         }
         streamRef.current = null
         stream.getTracks().forEach(t => t.stop())
-        const file = new File(audioChunksRef.current, 'voice_prompt.webm', { type: 'audio/webm' })
         setRecordingWordId(null)
         setIsRecording(false)
-        await handleUploadAudio(wordId, file, (url) => {
-          // STATE PROTECTION: only write to customAudioByWord — never aiAudioByWord
-          setCustomAudioByWord(prev => ({ ...prev, [wordId]: url }))
-        })
+        const blob    = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const blobUrl = URL.createObjectURL(blob)
+        customBlobUrlsRef.current.push(blobUrl)
+        setCustomAudioByWord(prev => ({ ...prev, [wordId]: blobUrl }))
       }
       mediaRecorder.start()
       setRecordingWordId(wordId)
@@ -195,6 +237,29 @@ function EditTemplate() {
     setRecordingWordId(null)
     setIsRecording(false)
   }
+
+  // Unmount cleanup
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        isAbortedRef.current = true
+        mediaRecorderRef.current.onstop = null
+        mediaRecorderRef.current.stop()
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause()
+        audioPreviewRef.current.src = ''
+        audioPreviewRef.current.load()
+        audioPreviewRef.current = null
+      }
+      customBlobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+      customBlobUrlsRef.current = []
+    }
+  }, [])
 
   useEffect(() => {
     if (!isRecording || recordingWordId === null) return
@@ -251,6 +316,9 @@ function EditTemplate() {
 
   return (
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
+      <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '10px' }}>
+        ← Back
+      </button>
       <h2 style={{ margin: '0 0 20px 0' }}>Edit Practice</h2>
 
       <form onSubmit={handleSubmit} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
@@ -309,8 +377,18 @@ function EditTemplate() {
                 <div
                   key={word.id}
                   onClick={() => toggleWordSelection(word.id)}
-                  style={{ border: isSelected ? '3px solid #3b82f6' : '1px solid #d1d5db', borderRadius: '8px', padding: '10px', cursor: 'pointer', backgroundColor: isSelected ? '#eff6ff' : 'white', textAlign: 'center', transition: 'all 0.2s' }}
+                  style={{ border: isSelected ? '3px solid #3b82f6' : '1px solid #d1d5db', borderRadius: '8px', padding: '10px', cursor: 'pointer', backgroundColor: isSelected ? '#eff6ff' : 'white', textAlign: 'center', transition: 'all 0.2s', position: 'relative' }}
                 >
+                  <button
+                    type="button"
+                    title={`Delete "${word.text}" from word bank`}
+                    onClick={e => { e.stopPropagation(); handleDeleteWord(word.id, word.text) }}
+                    style={{ position: 'absolute', top: '5px', right: '5px', background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', padding: '3px', borderRadius: '4px', display: 'flex', alignItems: 'center', transition: 'color 0.15s, background-color 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#d1d5db'; e.currentTarget.style.backgroundColor = 'transparent' }}
+                  >
+                    <Trash2 size={13} strokeWidth={2} />
+                  </button>
                   {imgSrc(word.image_url) ? (
                     <img src={imgSrc(word.image_url)} alt={word.text} style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '5px', marginBottom: '6px' }} />
                   ) : (

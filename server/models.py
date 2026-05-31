@@ -39,8 +39,9 @@ class WordBank(Base):
     text = Column(String, nullable=False)
     phonetic_trans = Column(String, nullable=False)
     image_url = Column(String)
-    audio_url = Column(String, nullable=True)                                        # clinician-uploaded pronunciation prompt
-    practice_type = Column(String, default='text', server_default='text', nullable=False)  # 'text' | 'voice'
+    audio_url = Column(String, nullable=True)
+    practice_type = Column(String, default='text', server_default='text', nullable=False)
+    is_active = Column(Boolean, default=True, server_default='true', nullable=False)  # soft-delete flag
     category = Column(String)
     difficulty = Column(Integer)
 
@@ -79,6 +80,7 @@ class PatientAssignment(Base):
     status = Column(String, default="pending")  # pending, completed, reviewed
     score = Column(Integer, nullable=True)       # average AI grade for the session (0-100)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    is_archived = Column(Boolean, default=False, server_default='false', nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationship to access the template details easily

@@ -11,6 +11,7 @@ import httpx
 # regardless of the CWD when uvicorn is started.
 WORD_AUDIO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "word_audio")
 os.makedirs(WORD_AUDIO_DIR, exist_ok=True)
+print(f"[practice_routes] WORD_AUDIO_DIR = {WORD_AUDIO_DIR}")
 ALLOWED_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg", ".webm"}
 
 
@@ -27,30 +28,49 @@ def _remove_old_audio(audio_url: str) -> None:
             pass
 
 
+def _audio_file_path(audio_url: str) -> str:
+    """Convert a /word-audio/filename.mp3 URL to its absolute disk path."""
+    filename = audio_url.rsplit("/", 1)[-1]
+    return os.path.join(WORD_AUDIO_DIR, filename)
+
+
 def get_or_create_cached_audio(text: str, db: Session) -> str:
     """
     Returns the /word-audio URL for `text`.
-    Checks the ai_audio_cache table first; runs gTTS and persists on a miss.
-    Text is normalised (lowercase + strip) before the lookup.
+    Checks ai_audio_cache first; if a cached entry's file is missing (stale),
+    deletes the stale row and regenerates. Verifies the file exists after saving.
     """
     key = text.lower().strip()
     cached = db.query(models.AiAudioCache).filter(
         models.AiAudioCache.word_text == key
     ).first()
+
     if cached:
-        print(f"[audio_cache] HIT  '{key}'")
-        return cached.audio_url
+        if os.path.exists(_audio_file_path(cached.audio_url)):
+            print(f"[audio_cache] HIT  '{key}'")
+            return cached.audio_url
+        # Stale cache entry — file is missing on disk
+        print(f"[audio_cache] STALE '{key}' — file missing, regenerating")
+        db.delete(cached)
+        db.commit()
 
-    print(f"[audio_cache] MISS '{key}' — generating…")
+    print(f"[audio_cache] MISS '{key}' — generating with gTTS…")
     from gtts import gTTS
-    tts = gTTS(text=key, lang="en", slow=False)
+    tts      = gTTS(text=key, lang="en", slow=False)
     filename = f"{uuid.uuid4()}.mp3"
-    tts.save(os.path.join(WORD_AUDIO_DIR, filename))
-    audio_url = f"/word-audio/{filename}"
+    dest     = os.path.join(WORD_AUDIO_DIR, filename)
+    tts.save(dest)
 
+    # Verify the file was actually written before committing the cache entry
+    if not os.path.exists(dest):
+        raise RuntimeError(
+            f"[audio_cache] gTTS reported success but file not found at: {dest}"
+        )
+
+    audio_url = f"/word-audio/{filename}"
     db.add(models.AiAudioCache(word_text=key, audio_url=audio_url))
     db.commit()
-    print(f"[audio_cache] Cached '{key}' → {filename}")
+    print(f"[audio_cache] Saved '{key}' → {filename}  (dir: {WORD_AUDIO_DIR})")
     return audio_url
 
 import database
@@ -81,9 +101,10 @@ def create_word(
     if not word_text:
         raise HTTPException(status_code=400, detail="Word text cannot be empty.")
 
-    # Return existing word if it already exists (case-insensitive)
+    # Return existing active word if it already exists (case-insensitive)
     existing = db.query(models.WordBank).filter(
-        models.WordBank.text.ilike(word_text)
+        models.WordBank.text.ilike(word_text),
+        models.WordBank.is_active == True
     ).first()
     if existing:
         return existing
@@ -123,8 +144,12 @@ def create_word(
     if data.practice_type == 'sound':
         try:
             new_word.audio_url = get_or_create_cached_audio(word_text, db)
+            print(f"[create_word] audio_url set to: {new_word.audio_url}")
         except Exception as e:
-            print(f"[create_word] audio generation failed: {e}")  # non-fatal
+            import traceback
+            print(f"[create_word] ⚠️  TTS generation FAILED for '{word_text}': {e}")
+            traceback.print_exc()
+            # Word is saved without audio_url; clinician can generate manually
 
     db.commit()
     db.refresh(new_word)
@@ -205,10 +230,75 @@ def update_word_type(
     return {"word_id": word_id, "practice_type": data.practice_type}
 
 
-# Fetches all words from the word bank to populate the clinician's selection screen.
+# Soft-deletes a word (sets is_active = False); existing template links remain intact
+@router.delete("/words/{word_id}", status_code=204)
+def delete_word(
+        word_id: int,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Only clinicians can delete words.")
+    word = db.query(models.WordBank).filter(
+        models.WordBank.id == word_id,
+        models.WordBank.is_active == True
+    ).first()
+    if not word:
+        raise HTTPException(status_code=404, detail="Word not found.")
+    word.is_active = False
+    db.commit()
+
+
+# Cleans up words and cache entries whose audio files are missing on disk
+@router.post("/audio/cleanup-orphans")
+def cleanup_orphan_audio(
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Finds words and ai_audio_cache rows whose audio_url points to a missing file,
+    nulls the word's audio_url, and deletes the stale cache entry.
+    Returns a summary of what was cleaned.
+    """
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Clinician access only.")
+
+    cleaned_words  = 0
+    cleaned_cache  = 0
+
+    # Fix word_bank rows with broken local audio_urls
+    words_with_audio = db.query(models.WordBank).filter(
+        models.WordBank.audio_url.isnot(None),
+        ~models.WordBank.audio_url.like("http%")   # skip external URLs
+    ).all()
+    for w in words_with_audio:
+        if not os.path.exists(_audio_file_path(w.audio_url)):
+            print(f"[cleanup] Clearing missing audio for word '{w.text}': {w.audio_url}")
+            w.audio_url = None
+            cleaned_words += 1
+
+    # Fix stale ai_audio_cache rows
+    cache_rows = db.query(models.AiAudioCache).all()
+    for c in cache_rows:
+        if not os.path.exists(_audio_file_path(c.audio_url)):
+            print(f"[cleanup] Removing stale cache entry '{c.word_text}': {c.audio_url}")
+            db.delete(c)
+            cleaned_cache += 1
+
+    db.commit()
+    return {
+        "words_fixed": cleaned_words,
+        "cache_entries_removed": cleaned_cache,
+        "message": f"Cleaned {cleaned_words} word(s) and {cleaned_cache} cache entry/entries."
+    }
+
+
+# Fetches all active words from the word bank to populate the clinician's selection screen.
 @router.get("/words")
 def get_all_words(db: Session = Depends(database.get_db)):
-    words = db.query(models.WordBank).all()
+    words = db.query(models.WordBank).filter(
+        models.WordBank.is_active == True
+    ).all()
     if not words:
         raise HTTPException(status_code=404, detail="No words found in the database.")
     return words
@@ -417,7 +507,8 @@ def get_my_assignments(
         raise HTTPException(status_code=403, detail="Only patients can view their assigned tasks.")
 
     assignments = db.query(models.PatientAssignment).filter(
-        models.PatientAssignment.patient_id == current_user.id
+        models.PatientAssignment.patient_id == current_user.id,
+        models.PatientAssignment.is_archived == False
     ).all()
 
     return assignments
@@ -451,6 +542,25 @@ def complete_assignment(
     db.refresh(assignment)
 
     return assignment
+
+
+# Archives a completed assignment after clinician review
+@router.patch("/assignments/{assignment_id}/archive", status_code=204)
+def archive_assignment(
+        assignment_id: uuid.UUID,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Only clinicians can archive assignments.")
+    assignment = db.query(models.PatientAssignment).filter(
+        models.PatientAssignment.id == str(assignment_id),
+        models.PatientAssignment.clinician_id == current_user.id
+    ).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found.")
+    assignment.is_archived = True
+    db.commit()
 
 
 # Removes a pending assignment (clinician only)

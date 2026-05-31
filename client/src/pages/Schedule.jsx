@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { enUS } from 'date-fns/locale'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '../App.css'
@@ -159,6 +160,14 @@ function Schedule() {
 
   return (
     <div className="dashboard-page">
+
+      {/* Link-based back navigation — React Router Link is immune to event-layer issues */}
+      <Link
+        to="/dashboard"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none', marginBottom: '8px' }}
+      >
+        ← Back
+      </Link>
 
       {/* Page header */}
       <div className="page-header">

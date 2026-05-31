@@ -1,4 +1,5 @@
 import uuid
+import os
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -114,9 +115,92 @@ def get_patient_assignments(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found or not linked to you.")
 
-    # 3. Fetch the assignments instead of the old practice sessions
+    # 3. Return only non-archived assignments (active queue)
     assignments = db.query(models.PatientAssignment).filter(
-        models.PatientAssignment.patient_id == patient_id
+        models.PatientAssignment.patient_id == patient_id,
+        models.PatientAssignment.is_archived == False
     ).all()
 
     return assignments
+
+
+@router.get("/patients/{patient_id}/archived-assignments", response_model=List[schemas.PatientAssignmentOut])
+def get_archived_assignments(
+        patient_id: uuid.UUID,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """Returns all archived (reviewed) assignments for a patient."""
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Only clinicians can view archived assignments.")
+    patient = db.query(models.Patient).filter(
+        models.Patient.user_id == patient_id,
+        models.Patient.clinician_id == current_user.id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found or not linked to you.")
+    return (
+        db.query(models.PatientAssignment)
+        .filter(
+            models.PatientAssignment.patient_id == patient_id,
+            models.PatientAssignment.is_archived == True
+        )
+        .order_by(models.PatientAssignment.completed_at.desc())
+        .all()
+    )
+
+
+@router.delete("/patients/{patient_id}", status_code=204)
+def delete_patient(
+        patient_id: uuid.UUID,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Permanently deletes a patient and all associated data.
+    Deletion order respects FK constraints: recordings → assignments →
+    appointments → patient profile → user account.
+    """
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    patient = db.query(models.Patient).filter(
+        models.Patient.user_id == patient_id,
+        models.Patient.clinician_id == current_user.id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found or not linked to you.")
+
+    # 1. Recordings — remove physical files from disk, then delete DB rows
+    recordings = db.query(models.Recording).filter(
+        models.Recording.patient_id == patient_id
+    ).all()
+    for rec in recordings:
+        if rec.file_path and os.path.exists(rec.file_path):
+            try:
+                os.remove(rec.file_path)
+            except OSError:
+                pass
+        db.delete(rec)
+    db.flush()
+
+    # 2. Practice assignments (includes archived)
+    db.query(models.PatientAssignment).filter(
+        models.PatientAssignment.patient_id == patient_id
+    ).delete()
+
+    # 3. Appointments
+    db.query(models.Appointment).filter(
+        models.Appointment.patient_id == patient_id
+    ).delete()
+
+    # 4. Patient profile
+    db.delete(patient)
+    db.flush()
+
+    # 5. User account
+    user = db.query(models.User).filter(models.User.id == patient_id).first()
+    if user:
+        db.delete(user)
+
+    db.commit()

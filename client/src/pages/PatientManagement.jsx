@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 
 function PatientManagement() {
   const navigate = useNavigate()
+  const location = useLocation()
 
-  const [patients, setPatients] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [patients,    setPatients]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [error,       setError]       = useState('')
+  const [successMsg,  setSuccessMsg]  = useState(
+    location.state?.deletedName ? `${location.state.deletedName} has been permanently deleted.` : ''
+  )
+
+  // Auto-clear success toast
+  useEffect(() => {
+    if (!successMsg) return
+    const t = setTimeout(() => setSuccessMsg(''), 4000)
+    return () => clearTimeout(t)
+  }, [successMsg])
 
   // States for the Create Patient Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -103,6 +114,10 @@ function PatientManagement() {
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto', position: 'relative' }}>
 
+      <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '8px' }}>
+        ← Back
+      </button>
+
       {/* Header Area */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div style={{ textAlign: 'left', flex: 1 }}>
@@ -113,6 +128,13 @@ function PatientManagement() {
           + Add Patient
         </button>
       </div>
+
+      {/* Deletion success toast */}
+      {successMsg && (
+        <div style={{ marginBottom: '20px', padding: '12px 16px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', color: '#15803d', fontWeight: 600, fontSize: '0.875rem' }}>
+          ✓ {successMsg}
+        </div>
+      )}
 
       {/* Patients Grid */}
       {patients.length === 0 ? (

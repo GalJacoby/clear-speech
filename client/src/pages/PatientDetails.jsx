@@ -115,6 +115,21 @@ function PatientDetails() {
       .catch(() => {})
   }, [patientId])
 
+  const handleDeletePatient = async () => {
+    if (!window.confirm(
+      `Permanently delete ${displayName} and ALL of their data?\n\nThis includes all practices, recordings, grades, and appointments.\n\nThis action CANNOT be undone.`
+    )) return
+    try {
+      const token = localStorage.getItem('token')
+      await axios.delete(`http://127.0.0.1:8000/clinician/patients/${patientId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      navigate('/patients', { state: { deletedName: displayName } })
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Could not delete patient.')
+    }
+  }
+
   const handleToggleClinicianFlag = async (recordingId) => {
     // 1. Compute new toggled state
     const rec = recordings.find(r => r.id === recordingId)
@@ -153,6 +168,24 @@ function PatientDetails() {
       setRecordings(prevRecordings)
       setFlaggedWords(prevFlaggedWords)
       alert("Could not update flag. Please try again.")
+    }
+  }
+
+  const [archiveToast, setArchiveToast] = useState('')
+
+  const handleArchive = async (assignmentId) => {
+    try {
+      const token = localStorage.getItem('token')
+      await axios.patch(
+        `http://127.0.0.1:8000/practice/assignments/${assignmentId}/archive`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setAssignments(prev => prev.filter(a => a.id !== assignmentId))
+      setArchiveToast('Practice archived successfully.')
+      setTimeout(() => setArchiveToast(''), 3000)
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Could not archive assignment.')
     }
   }
 
@@ -237,6 +270,9 @@ function PatientDetails() {
 
       {/* Page header */}
       <div style={{ marginBottom: '24px' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '8px' }}>
+          ← Back
+        </button>
         <h1 style={{ margin: 0, color: '#111827' }}>{displayName}'s Profile</h1>
         <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Review progress and assigned missions</p>
       </div>
@@ -306,6 +342,32 @@ function PatientDetails() {
                   </ul>
                 )}
               </div>
+
+              {/* Archived Practices link */}
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f3f4f6' }}>
+                <button
+                  onClick={() => navigate(`/patients/${patientId}/archived`, { state: { patient: patientFromNav || patientDetail } })}
+                  style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', width: '100%', textAlign: 'left', fontSize: '0.82rem', color: '#6b7280', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <span>📁 Archived Practices</span>
+                  <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>→</span>
+                </button>
+              </div>
+
+              {/* Delete Patient — permanent, intentional danger action */}
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #fef2f2' }}>
+                <button
+                  onClick={handleDeletePatient}
+                  style={{ background: 'none', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', width: '100%', textAlign: 'left', fontSize: '0.82rem', color: '#ef4444', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <span>🗑 Delete Patient</span>
+                  <span style={{ fontSize: '0.7rem', color: '#fca5a5' }}>permanent</span>
+                </button>
+              </div>
             </>
           ) : (
             <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>Loading details...</p>
@@ -317,6 +379,11 @@ function PatientDetails() {
 
           {loading && <p>Loading assignments...</p>}
           {error && <p className="error-msg">{error}</p>}
+          {archiveToast && (
+            <div style={{ marginBottom: '12px', padding: '10px 16px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', color: '#15803d', fontWeight: 600, fontSize: '0.875rem' }}>
+              ✓ {archiveToast}
+            </div>
+          )}
 
           {!loading && !error && (
             <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', border: '1px solid #e5e7eb', textAlign: 'left' }}>
@@ -352,9 +419,16 @@ function PatientDetails() {
                                 )}
                               </div>
                             </div>
-                            <button onClick={() => handleReviewAudio(a.id)} style={{ fontSize: '0.8rem', backgroundColor: selectedAssignmentId === a.id ? '#3b82f6' : 'white', color: selectedAssignmentId === a.id ? 'white' : '#374151', border: '1px solid #d1d5db', cursor: 'pointer', padding: '6px 14px', borderRadius: '6px' }}>
-                              {selectedAssignmentId === a.id ? 'Close Review' : 'Review Audio'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button onClick={() => handleReviewAudio(a.id)} style={{ fontSize: '0.8rem', backgroundColor: selectedAssignmentId === a.id ? '#3b82f6' : 'white', color: selectedAssignmentId === a.id ? 'white' : '#374151', border: '1px solid #d1d5db', cursor: 'pointer', padding: '6px 14px', borderRadius: '6px' }}>
+                                {selectedAssignmentId === a.id ? 'Close Review' : 'Review Audio'}
+                              </button>
+                              {!a.is_archived && (
+                                <button onClick={() => handleArchive(a.id)} title="Mark as reviewed and archive" style={{ fontSize: '0.8rem', backgroundColor: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', cursor: 'pointer', padding: '6px 14px', borderRadius: '6px', fontWeight: 600 }}>
+                                  ✓ Complete Review
+                                </button>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>

@@ -48,6 +48,9 @@ function Practices() {
     <div className="dashboard-page">
       <div className="page-header">
         <div>
+          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '4px' }}>
+            ← Back
+          </button>
           <h1>Practices</h1>
           <p className="dashboard-subtitle">
             {loading ? '' : `${templates.length} template${templates.length !== 1 ? 's' : ''}`}

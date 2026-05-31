@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import axios from 'axios'
+import { Mic, ChevronLeft, ChevronRight, X, Volume2, Trash2 } from 'lucide-react'
 import '../App.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -262,10 +263,16 @@ function PracticeRoom() {
 
       {/* Header */}
       <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px' }}>
-        <button onClick={() => navigate('/dashboard')} className="btn-secondary" style={{ position: 'absolute', left: 0 }}>
-          Exit
+        <button
+          onClick={() => navigate('/dashboard')}
+          title="Exit practice"
+          style={{ position: 'absolute', left: 0, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', color: '#9ca3af', transition: 'background-color 0.15s, color 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f3f4f6'; e.currentTarget.style.color = '#374151' }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9ca3af' }}
+        >
+          <X size={18} strokeWidth={2} />
         </button>
-        <span style={{ color: '#6b7280', fontWeight: 'bold' }}>Sound: {targetSound}</span>
+        <span style={{ color: '#9ca3af', fontSize: '0.85rem', letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 500 }}>Sound: {targetSound}</span>
       </div>
 
       <p>Word {currentIndex + 1} of {words.length}</p>
@@ -294,41 +301,75 @@ function PracticeRoom() {
             onClick={() => new Audio(mediaSrc(currentWord.audio_url)).play().catch(console.error)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto 14px auto',
-              padding: '10px 24px', backgroundColor: '#f0fdf4', color: '#15803d',
-              border: '2px solid #bbf7d0', borderRadius: '30px', cursor: 'pointer',
-              fontWeight: 700, fontSize: '0.95rem', transition: 'background-color 0.15s'
+              padding: '10px 26px', backgroundColor: '#f0fdf4', color: '#16a34a',
+              border: '1.5px solid #bbf7d0', borderRadius: '999px', cursor: 'pointer',
+              fontWeight: 600, fontSize: '0.9rem', transition: 'all 0.15s', fontFamily: 'inherit'
             }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#dcfce7'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#dcfce7'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(22,163,74,0.15)' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0fdf4'; e.currentTarget.style.boxShadow = 'none' }}
           >
-            🔊 Play Word
+            <Volume2 size={16} strokeWidth={2} />
+            Play Word
           </button>
         )}
 
         {/* Recorder UI */}
-        <div style={{ marginTop: '20px', padding: '15px', border: '2px dashed #3b82f6', borderRadius: '8px', backgroundColor: '#eff6ff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+        <div style={{ marginTop: '20px', padding: '24px 16px', borderRadius: '16px', backgroundColor: '#fafafa', border: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
 
-          {/* STATE 1: idle */}
+          {/* STATE 1: idle — soft mic button */}
           {!isRecording && !currentRecording && (
-            <button onClick={startRecording} className="btn-primary" style={{ borderRadius: '50%', width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ef4444' }}>
-              🎤
+            <button
+              onClick={startRecording}
+              title="Start recording"
+              style={{
+                width: '72px', height: '72px', borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(99,102,241,0.35)', transition: 'transform 0.15s, box-shadow 0.15s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(99,102,241,0.45)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)' }}
+            >
+              <Mic size={28} color="white" strokeWidth={1.75} />
             </button>
           )}
 
-          {/* STATE 2: recording */}
+          {/* STATE 2: recording — pulsing rose button + stop */}
           {isRecording && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <p style={{ color: '#ef4444', fontWeight: 'bold' }}>Recording…</p>
-              <button onClick={stopRecording} className="btn-primary" style={{ backgroundColor: '#374151' }}>Stop</button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={stopRecording}
+                title="Stop recording"
+                style={{
+                  width: '72px', height: '72px', borderRadius: '50%', border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  animation: 'micPulse 1.6s ease-in-out infinite',
+                  boxShadow: '0 4px 14px rgba(244,63,94,0.3)'
+                }}
+              >
+                <Mic size={28} color="white" strokeWidth={1.75} />
+              </button>
+              <span style={{ fontSize: '0.8rem', color: '#f43f5e', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Recording…</span>
             </div>
           )}
 
-          {/* STATE 3: recording exists */}
+          {/* STATE 3: recording exists — player + soft delete */}
           {currentRecording && (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-              <audio controls src={currentRecording.url} style={{ width: '100%' }} />
-              <button onClick={deleteRecording} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '5px 10px' }}>
-                🗑 Delete & Retry
+              <audio controls src={currentRecording.url} style={{ width: '100%', borderRadius: '8px' }} />
+              <button
+                onClick={deleteRecording}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  background: 'none', border: '1px solid #e5e7eb', borderRadius: '999px',
+                  padding: '6px 16px', cursor: 'pointer', color: '#9ca3af', fontSize: '0.8rem',
+                  fontFamily: 'inherit', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#fca5a5'; e.currentTarget.style.color = '#ef4444' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#9ca3af' }}
+              >
+                <Trash2 size={13} strokeWidth={2} /> Delete & Retry
               </button>
             </div>
           )}
@@ -374,12 +415,40 @@ function PracticeRoom() {
       {/* Footer */}
       <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-          <button onClick={handlePrev} disabled={currentIndex === 0} className="btn-secondary" style={{ flex: 1, opacity: currentIndex === 0 ? 0.5 : 1, margin: 0 }}>
-            ⬅ Previous
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={handlePrev}
+            disabled={currentIndex === 0}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              padding: '11px 20px', borderRadius: '999px', border: '1.5px solid #e5e7eb',
+              backgroundColor: 'white', color: '#6b7280', fontFamily: 'inherit', fontWeight: 600,
+              fontSize: '0.875rem', cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
+              opacity: currentIndex === 0 ? 0.4 : 1,
+              transition: 'all 0.15s', boxShadow: currentIndex === 0 ? 'none' : '0 1px 4px rgba(0,0,0,0.06)'
+            }}
+            onMouseEnter={e => { if (currentIndex > 0) e.currentTarget.style.backgroundColor = '#f9fafb' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white' }}
+          >
+            <ChevronLeft size={16} strokeWidth={2.5} /> Previous
           </button>
-          <button onClick={handleNext} disabled={currentIndex === words.length - 1} className="btn-primary" style={{ flex: 1, opacity: currentIndex === words.length - 1 ? 0.5 : 1, backgroundColor: '#3b82f6', margin: 0 }}>
-            Next Word ➡
+          <button
+            onClick={handleNext}
+            disabled={currentIndex === words.length - 1}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              padding: '11px 20px', borderRadius: '999px', border: 'none',
+              background: currentIndex === words.length - 1 ? '#e5e7eb' : 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
+              color: currentIndex === words.length - 1 ? '#9ca3af' : 'white',
+              fontFamily: 'inherit', fontWeight: 600, fontSize: '0.875rem',
+              cursor: currentIndex === words.length - 1 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s',
+              boxShadow: currentIndex === words.length - 1 ? 'none' : '0 4px 12px rgba(99,102,241,0.3)'
+            }}
+            onMouseEnter={e => { if (currentIndex < words.length - 1) e.currentTarget.style.boxShadow = '0 6px 16px rgba(99,102,241,0.4)' }}
+            onMouseLeave={e => { if (currentIndex < words.length - 1) e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.3)' }}
+          >
+            Next Word <ChevronRight size={16} strokeWidth={2.5} />
           </button>
         </div>
 

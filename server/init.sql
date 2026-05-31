@@ -23,6 +23,9 @@ CREATE TABLE word_bank (
     text VARCHAR NOT NULL,
     phonetic_trans VARCHAR NOT NULL,
     image_url VARCHAR,
+    audio_url VARCHAR,
+    practice_type VARCHAR NOT NULL DEFAULT 'text',
+    is_active BOOLEAN NOT NULL DEFAULT true,
     category VARCHAR,
     difficulty INTEGER CHECK (difficulty BETWEEN 1 AND 5)
 );
@@ -57,6 +60,7 @@ CREATE TABLE patient_assignments (
     clinician_id UUID REFERENCES users(id) NOT NULL,
     template_id UUID REFERENCES exercise_templates(id) NOT NULL,
     status VARCHAR DEFAULT 'pending',
+    is_archived BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
