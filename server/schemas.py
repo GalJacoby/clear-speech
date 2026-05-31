@@ -39,6 +39,59 @@ class PatientOut(BaseModel):
         from_attributes = True
 
 
+class WordCreate(BaseModel):
+    text: str
+    practice_type: str = 'text'   # 'text' | 'voice'
+
+
+class WordOut(BaseModel):
+    id: int
+    text: str
+    phonetic_trans: str
+    image_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    practice_type: str = 'text'
+    category: Optional[str] = None
+    difficulty: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WordTypeUpdate(BaseModel):
+    practice_type: str   # 'text' | 'sound'
+
+
+class AudioGenerateRequest(BaseModel):
+    word_id: int
+    text: str
+
+
+class WordOut(BaseModel):
+    id: int
+    text: str
+    phonetic_trans: str
+    image_url: Optional[str] = None
+    category: Optional[str] = None
+    difficulty: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PatientDetailOut(BaseModel):
+    user_id: uuid.UUID
+    full_name: str
+    date_of_birth: Optional[date] = None
+    target_sounds: List[str] = []
+    parent_email: Optional[str] = None
+    clinician_id: uuid.UUID
+    next_appointment: Optional['AppointmentOut'] = None
+
+    class Config:
+        from_attributes = True
+
+
 # --- Exercise Template Schemas (The Library) ---
 class ExerciseTemplateCreate(BaseModel):
     title: str
@@ -57,10 +110,32 @@ class ExerciseTemplateOut(BaseModel):
         from_attributes = True
 
 
+class ExerciseTemplateUpdate(BaseModel):
+    title: Optional[str] = None
+    target_sound: Optional[str] = None
+    word_ids: Optional[List[int]] = None
+
+
+class ExerciseTemplateDetailOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    target_sound: str
+    created_by_clinician_id: uuid.UUID
+    created_at: datetime
+    word_ids: List[int]
+
+    class Config:
+        from_attributes = True
+
+
 # --- Patient Assignment Schemas (Linking patient to template) ---
 class PatientAssignmentCreate(BaseModel):
     patient_id: uuid.UUID
     template_id: uuid.UUID
+
+
+class AssignmentComplete(BaseModel):
+    score: Optional[int] = None  # average AI grade for the session (0-100)
 
 
 class PatientAssignmentOut(BaseModel):
@@ -69,11 +144,38 @@ class PatientAssignmentOut(BaseModel):
     clinician_id: uuid.UUID
     template_id: uuid.UUID
     status: str
+    score: Optional[int] = None
+    completed_at: Optional[datetime] = None
     created_at: datetime
 
     # Virtual fields fetched from the template via @property in models.py
     template_title: Optional[str] = None
     target_sound: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Appointment Schemas ---
+class AppointmentCreate(BaseModel):
+    patient_id: uuid.UUID
+    title: str
+    start_time: datetime
+    end_time: datetime
+    recurrence_type: str = "one-time"  # one-time | weekly | bi-weekly
+
+
+class AppointmentOut(BaseModel):
+    id: uuid.UUID
+    clinician_id: uuid.UUID
+    patient_id: uuid.UUID
+    title: str
+    start_time: datetime
+    end_time: datetime
+    recurrence_type: str
+    recurrence_group_id: Optional[uuid.UUID] = None
+    created_at: datetime
+    patient_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -89,6 +191,14 @@ class RecordingOut(BaseModel):
     created_at: datetime
     is_reviewed: bool
     word_text: str
+    score: Optional[int] = None
+    feedback: Optional[str] = None
+    marked_by_clinician: bool = False
+    marked_by_patient: bool = False
 
     class Config:
         from_attributes = True
+
+
+class RecordingFlagToggle(BaseModel):
+    flag: str  # "clinician" or "patient"

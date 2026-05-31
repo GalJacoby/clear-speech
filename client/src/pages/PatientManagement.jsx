@@ -6,19 +6,9 @@ import '../App.css'
 function PatientManagement() {
   const navigate = useNavigate()
 
-  // State for loading patients and templates
   const [patients, setPatients] = useState([])
-  const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
-  // States for the Assign Modal
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedPatient, setSelectedPatient] = useState(null)
-
-  // Array to hold multiple selected template IDs
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState([])
-  const [modalMessage, setModalMessage] = useState('')
 
   // States for the Create Patient Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -37,27 +27,21 @@ function PatientManagement() {
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      const [patientsRes, templatesRes] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers }),
-        axios.get('http://127.0.0.1:8000/practice/templates', { headers })
-      ])
+      const patientsRes = await axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers })
+      const fetchedPatients = patientsRes.data
 
-      const fetchedPatients = patientsRes.data;
-
-      // Fetch assignments for each patient to count the completed ones
+      // Fetch assignments per patient to show the completed-count badge
       const patientsWithCounts = await Promise.all(fetchedPatients.map(async (patient) => {
         try {
-          const assignRes = await axios.get(`http://127.0.0.1:8000/clinician/patients/${patient.user_id}/assignments`, { headers });
-          const completedCount = assignRes.data.filter(a => a.status === 'completed').length;
-          return { ...patient, completedCount };
-        } catch (err) {
-          console.error(`Could not fetch assignments for ${patient.full_name}`);
-          return { ...patient, completedCount: 0 };
+          const assignRes = await axios.get(`http://127.0.0.1:8000/clinician/patients/${patient.user_id}/assignments`, { headers })
+          const completedCount = assignRes.data.filter(a => a.status === 'completed').length
+          return { ...patient, completedCount }
+        } catch {
+          return { ...patient, completedCount: 0 }
         }
-      }));
+      }))
 
       setPatients(patientsWithCounts)
-      setTemplates(templatesRes.data)
     } catch (err) {
       console.error("Fetch error:", err)
       setError("Could not load data.")
@@ -69,19 +53,6 @@ function PatientManagement() {
   useEffect(() => {
     fetchData()
   }, [])
-
-  // Functions to handle the modal
-  const openAssignModal = (patient) => {
-    setSelectedPatient(patient)
-    setSelectedTemplateIds([]) // Reset selections
-    setModalMessage('')
-    setIsModalOpen(true)
-  }
-
-  const closeAssignModal = () => {
-    setIsModalOpen(false)
-    setSelectedPatient(null)
-  }
 
   // Create Patient modal
   const openCreateModal = () => {
@@ -116,71 +87,13 @@ function PatientManagement() {
       }
       await axios.post('http://127.0.0.1:8000/clinician/patients', payload, { headers })
       setCreateMessage('Patient created successfully.')
-      await fetchData() // This will refresh the grid and the badges
+      await fetchData()
       setTimeout(() => closeCreateModal(), 1500)
     } catch (err) {
       const detail = err.response?.data?.detail
       setCreateMessage(detail || 'Failed to create patient.')
     } finally {
       setCreateLoading(false)
-    }
-  }
-
-  // Handle checking/unchecking a template
-  const toggleTemplateSelection = (templateId) => {
-    setSelectedTemplateIds(prev => {
-      if (prev.includes(templateId)) {
-        return prev.filter(id => id !== templateId)
-      } else {
-        return [...prev, templateId]
-      }
-    })
-  }
-
-  // Function to submit the assignments to the backend
-  const handleAssignTemplates = async (e) => {
-    e.preventDefault()
-    setModalMessage('')
-
-    if (selectedTemplateIds.length === 0) {
-      setModalMessage("❌ Please select at least one template.")
-      return
-    }
-
-    const token = localStorage.getItem('token')
-    const headers = { Authorization: `Bearer ${token}` }
-
-    let hasError = false;
-    let errorMessage = "❌ Error assigning practices.";
-
-    // Loop through each selected template and assign it
-    for (let templateId of selectedTemplateIds) {
-      try {
-        const assignmentData = {
-          patient_id: selectedPatient.user_id,
-          template_id: templateId
-        }
-        await axios.post('http://127.0.0.1:8000/practice/assignments', assignmentData, { headers })
-      } catch (err) {
-        hasError = true;
-        // Grab the specific detail message from the FastAPI backend if it exists
-        if (err.response && err.response.data && err.response.data.detail) {
-          errorMessage = `❌ ${err.response.data.detail}`;
-        }
-        break; // Stop processing further templates if one fails (e.g. duplicate)
-      }
-    }
-
-    if (hasError) {
-      setModalMessage(errorMessage);
-    } else {
-      setModalMessage(`✅ ${selectedTemplateIds.length} Practice(s) assigned successfully!`)
-      // Refresh the data so assignments count stays accurate
-      await fetchData()
-      // Close modal after 2 seconds
-      setTimeout(() => {
-        closeAssignModal()
-      }, 2000)
     }
   }
 
@@ -196,23 +109,9 @@ function PatientManagement() {
           <h1 style={{ margin: 0, color: '#111827' }}>Patient Management</h1>
           <p style={{ color: '#6b7280', margin: '5px 0 0 0' }}>Monitor and manage all your patients</p>
         </div>
-
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={openCreateModal}
-            className="btn-primary"
-            style={{ backgroundColor: '#059669', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
-          >
-            Add Patient
-          </button>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="btn-primary"
-            style={{ backgroundColor: '#4b5563', width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' }}
-          >
-            Back to Dashboard
-          </button>
-        </div>
+        <button onClick={openCreateModal} className="btn-create">
+          + Add Patient
+        </button>
       </div>
 
       {/* Patients Grid */}
@@ -221,42 +120,47 @@ function PatientManagement() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
           {patients.map(patient => (
-            <div key={patient.id} style={{
-              position: 'relative', // CHANGED: Added relative positioning for the absolute badge
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              padding: '20px',
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-              border: '1px solid #e5e7eb',
-              textAlign: 'left'
-            }}>
-
-              {/* Notification Badge for Completed Missions */}
+            <div
+              key={patient.user_id}
+              className="patient-card"
+              onClick={() => navigate(`/patients/${patient.user_id}`, { state: { patient } })}
+              style={{
+                position: 'relative',
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                padding: '20px',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                border: '1px solid #e5e7eb',
+                textAlign: 'left'
+              }}
+            >
+              {/* Completed-missions badge */}
               {patient.completedCount > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  backgroundColor: '#ef4444', // Red color
-                  color: 'white',
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '0.9rem',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}
-                title={`${patient.completedCount} mission(s) ready for review`}
+                <div
+                  title={`${patient.completedCount} mission(s) ready for review`}
+                  style={{
+                    position: 'absolute',
+                    top: '15px',
+                    right: '15px',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
                 >
                   {patient.completedCount}
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
-                <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '1.5rem', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '12px' }}>
+                <div style={{ width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontSize: '1.5rem', fontWeight: 'bold', flexShrink: 0 }}>
                   👤
                 </div>
                 <div>
@@ -264,118 +168,13 @@ function PatientManagement() {
                 </div>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px dashed #e5e7eb', marginBottom: '20px' }} />
+              <hr style={{ border: 'none', borderTop: '1px dashed #e5e7eb', margin: 0 }} />
 
-              <div style={{display: 'flex', gap: '10px'}}>
-                <button
-                    onClick={() => navigate(`/patients/${patient.user_id}`, {state: {patient}})}
-                    className="btn-primary"
-                    style={{flex: 2, backgroundColor: '#111827'}}
-                >
-                  View Details
-                </button>
-
-                <button
-                    onClick={() => openAssignModal(patient)}
-                    className="btn-primary"
-                    style={{flex: 1, backgroundColor: '#111827'}}
-                >
-                  Assign
-                </button>
-              </div>
-
+              <p style={{ margin: '12px 0 0 0', fontSize: '0.82rem', color: '#9ca3af' }}>
+                Click to view profile →
+              </p>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* The Assign Modal Overlay */}
-      {isModalOpen && (
-          <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '450px', textAlign: 'left', position: 'relative' }}>
-
-            <button
-              onClick={closeAssignModal}
-              style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }}
-            >
-              ✖
-            </button>
-
-            <h2 style={{ marginTop: 0 }}>Assign Practices</h2>
-            <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>For patient: <strong>{selectedPatient?.full_name}</strong></p>
-
-            {templates.length === 0 ? (
-              <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fef2f2', border: '1px solid #f87171', borderRadius: '8px' }}>
-                <p style={{ color: '#b91c1c', margin: 0, fontSize: '0.9rem' }}>
-                  You don't have any practice templates yet. Please create a template from the dashboard first.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleAssignTemplates} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    Select Practice Templates ({selectedTemplateIds.length} selected):
-                  </label>
-
-                  <div style={{
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    padding: '10px',
-                    backgroundColor: '#f9fafb'
-                  }}>
-                    {templates.map(t => (
-                      <label
-                        key={t.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          padding: '8px 5px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #e5e7eb'
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedTemplateIds.includes(t.id)}
-                          onChange={() => toggleTemplateSelection(t.id)}
-                          style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#3b82f6' }}
-                        />
-                        <span style={{ fontSize: '0.95rem', color: '#374151' }}>
-                          <strong>{t.title}</strong> <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>(Sound: {t.target_sound})</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <button type="submit" className="btn-primary" style={{ marginTop: '10px', backgroundColor: '#3b82f6' }}>
-                  Submit Assignments
-                </button>
-              </form>
-            )}
-
-            {modalMessage && (
-              <div style={{
-                marginTop: '15px',
-                padding: '10px',
-                borderRadius: '8px',
-                backgroundColor: modalMessage.includes('❌') ? '#fef2f2' : '#f0fdf4',
-                color: modalMessage.includes('❌') ? '#b91c1c' : '#15803d',
-                fontWeight: 'bold',
-                textAlign: 'center'
-              }}>
-                {modalMessage}
-              </div>
-            )}
-
-          </div>
         </div>
       )}
 

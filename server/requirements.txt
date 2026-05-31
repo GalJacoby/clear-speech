@@ -9,3 +9,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 sqlalchemy
 email-validator
+httpx
+google-generativeai
+gTTS

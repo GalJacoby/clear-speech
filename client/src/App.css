@@ -6,6 +6,7 @@
   width: 100%;
   max-width: 400px;
   text-align: center;
+  margin: 0 auto;
 }
 
 .input-field {
@@ -59,10 +60,415 @@
   margin-top: 10px;
 }
 
-.list-item {
-  background: #f3f4f6;
-  padding: 10px;
-  margin-bottom: 8px;
+/* Clinician layout & navbar */
+.clinician-layout {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.clinician-layout main {
+  flex: 1;
+  width: 100%;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 56px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.navbar-brand {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.navbar-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+  padding-right: 12px;
+  border-right: 1px solid #e5e7eb;
+  margin-right: 8px;
+}
+
+.navbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  padding: 6px 12px;
   border-radius: 6px;
-  list-style-type: none;
+  transition: background-color 0.15s;
+  font-family: inherit;
+}
+
+.navbar-btn:hover {
+  background-color: #f3f4f6;
+}
+
+.navbar-btn-logout {
+  color: #ef4444;
+}
+
+.navbar-btn-logout:hover {
+  background-color: #fef2f2;
+}
+
+/* Dashboard header */
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.dashboard-subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* Patient mission square-card grid */
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 260px));
+  gap: 24px;
+  justify-content: center;
+  margin-top: 32px;
+  list-style: none;
+  padding: 0;
+}
+
+.mission-square-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  aspect-ratio: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+  text-align: center;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.mission-square-card:hover {
+  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.14);
+  transform: translateY(-4px);
+}
+
+.mission-title {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  text-align: center;
+}
+
+.mission-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.badge-sound {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.badge-status {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.btn-start-full {
+  width: 100%;
+  padding: 10px;
+  background-color: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: background-color 0.2s;
+}
+
+.btn-start-full:hover {
+  background-color: #059669;
+}
+
+/* Clinician panel */
+.clinician-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: #3b82f6;
+  border: 2px solid #3b82f6;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-outline:hover {
+  background-color: #eff6ff;
+}
+
+/* Full-width page body shared by clinician pages */
+.dashboard-page {
+  padding: 40px 48px;
+  box-sizing: border-box;
+}
+
+/* Action card grid on clinician dashboard */
+.action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.action-card {
+  width: 220px;
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+  border: 1px solid #e5e7eb;
+  text-align: left;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.action-card:hover {
+  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.14);
+  transform: translateY(-4px);
+}
+
+.action-card-icon {
+  font-size: 2.25rem;
+  line-height: 1;
+  margin-bottom: auto;
+}
+
+.action-card-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.action-card-desc {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Practices hub page */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+/* Clickable patient card */
+.patient-card {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.patient-card:hover {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(-3px);
+}
+
+.btn-create {
+  background-color: #059669;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-create:hover {
+  background-color: #047857;
+}
+
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.template-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s;
+  gap: 12px;
+}
+
+.template-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.template-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.template-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.template-meta {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.template-btn-edit {
+  background: none;
+  border: 1px solid #93c5fd;
+  color: #3b82f6;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.template-btn-edit:hover {
+  background-color: #eff6ff;
+}
+
+.template-btn-delete {
+  background: none;
+  border: 1px solid #fca5a5;
+  color: #ef4444;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.template-btn-delete:hover {
+  background-color: #fef2f2;
+}
+
+/* Schedule / react-big-calendar */
+.calendar-container {
+  height: calc(100vh - 220px);
+  min-height: 520px;
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+  border: 1px solid #e5e7eb;
+}
+
+.rbc-toolbar button {
+  font-family: inherit;
+}
+
+.rbc-event {
+  border-radius: 4px !important;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 60px 0;
+  color: #6b7280;
+  text-align: center;
 }

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Boolean, ARRAY, Date
+from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Boolean, ARRAY, Date, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -25,6 +25,13 @@ class Patient(Base):
     date_of_birth = Column(Date)
     target_sounds = Column(ARRAY(String))
 
+class AiAudioCache(Base):
+    """Persistent cache: normalized word text → gTTS-generated audio URL."""
+    __tablename__ = "ai_audio_cache"
+    word_text = Column(String, primary_key=True)  # lowercase + stripped
+    audio_url = Column(String, nullable=False)
+
+
 class WordBank(Base):
     __tablename__ = "word_bank"
 
@@ -32,6 +39,8 @@ class WordBank(Base):
     text = Column(String, nullable=False)
     phonetic_trans = Column(String, nullable=False)
     image_url = Column(String)
+    audio_url = Column(String, nullable=True)                                        # clinician-uploaded pronunciation prompt
+    practice_type = Column(String, default='text', server_default='text', nullable=False)  # 'text' | 'voice'
     category = Column(String)
     difficulty = Column(Integer)
 
@@ -53,6 +62,7 @@ class ExerciseTemplate(Base):
     target_sound = Column(String, nullable=False)
     created_by_clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_archived = Column(Boolean, default=False, server_default='false', nullable=False)
 
     # Many-to-Many relationship: Fetches all WordBank objects linked to this template
     words = relationship("WordBank", secondary="template_words")
@@ -67,6 +77,8 @@ class PatientAssignment(Base):
     clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     template_id = Column(UUID(as_uuid=True), ForeignKey("exercise_templates.id"), nullable=False)
     status = Column(String, default="pending")  # pending, completed, reviewed
+    score = Column(Integer, nullable=True)       # average AI grade for the session (0-100)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationship to access the template details easily
@@ -80,6 +92,27 @@ class PatientAssignment(Base):
     @property
     def target_sound(self):
         return self.template.target_sound if self.template else None
+
+
+class Appointment(Base):
+    """A scheduled session between a clinician and patient"""
+    __tablename__ = "appointments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    recurrence_type = Column(String, nullable=False, default="one-time")
+    recurrence_group_id = Column(UUID(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    patient = relationship("User", foreign_keys=[patient_id])
+
+    @property
+    def patient_name(self):
+        return self.patient.full_name if self.patient else None
 
 
 class Recording(Base):
@@ -98,6 +131,10 @@ class Recording(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_reviewed = Column(Boolean, default=False)
     word_id = Column(Integer, ForeignKey("word_bank.id"), nullable=False)
+    score = Column(Integer, nullable=True)            # AI score for this specific word (0-100)
+    feedback = Column(String, nullable=True)          # AI phonetic feedback for this word
+    marked_by_clinician = Column(Boolean, default=False, server_default='false', nullable=False)
+    marked_by_patient   = Column(Boolean, default=False, server_default='false', nullable=False)
 
     # Relationships
     word = relationship("WordBank")

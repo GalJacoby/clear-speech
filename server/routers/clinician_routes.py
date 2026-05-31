@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -60,6 +61,38 @@ def get_my_patients(
 
     my_patients = db.query(models.Patient).filter(models.Patient.clinician_id == current_user.id).all()
     return my_patients
+
+@router.get("/patients/{patient_id}", response_model=schemas.PatientDetailOut)
+def get_patient_detail(
+        patient_id: uuid.UUID,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    patient = db.query(models.Patient).filter(
+        models.Patient.user_id == patient_id,
+        models.Patient.clinician_id == current_user.id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    next_apt = db.query(models.Appointment).filter(
+        models.Appointment.patient_id == patient_id,
+        models.Appointment.clinician_id == current_user.id,
+        models.Appointment.start_time >= datetime.now(timezone.utc)
+    ).order_by(models.Appointment.start_time.asc()).first()
+
+    return {
+        "user_id": patient.user_id,
+        "full_name": patient.full_name,
+        "date_of_birth": patient.date_of_birth,
+        "target_sounds": patient.target_sounds or [],
+        "parent_email": patient.parent_email,
+        "clinician_id": patient.clinician_id,
+        "next_appointment": next_apt
+    }
+
 
 @router.get("/patients/{patient_id}/assignments", response_model=List[schemas.PatientAssignmentOut])
 def get_patient_assignments(

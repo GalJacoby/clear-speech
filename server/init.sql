@@ -27,13 +27,20 @@ CREATE TABLE word_bank (
     difficulty INTEGER CHECK (difficulty BETWEEN 1 AND 5)
 );
 
+-- AI Audio Cache (normalized word text → gTTS-generated audio URL)
+CREATE TABLE ai_audio_cache (
+    word_text VARCHAR PRIMARY KEY,
+    audio_url VARCHAR NOT NULL
+);
+
 -- 1. Exercise Templates (The generic practice created by a clinician)
 CREATE TABLE exercise_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR NOT NULL,
     target_sound VARCHAR NOT NULL,
     created_by_clinician_id UUID REFERENCES users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_archived BOOLEAN NOT NULL DEFAULT false
 );
 
 -- 2. Template Words (Many-to-Many junction table linking templates to words)
@@ -53,7 +60,20 @@ CREATE TABLE patient_assignments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Recordings (The patient's actual audio submissions)
+-- 4. Appointments (Scheduled sessions between clinician and patient)
+CREATE TABLE appointments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clinician_id UUID REFERENCES users(id) NOT NULL,
+    patient_id UUID REFERENCES users(id) NOT NULL,
+    title VARCHAR NOT NULL,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    recurrence_type VARCHAR NOT NULL DEFAULT 'one-time',
+    recurrence_group_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5. Recordings (The patient's actual audio submissions)
 CREATE TABLE recordings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID REFERENCES users(id) NOT NULL,

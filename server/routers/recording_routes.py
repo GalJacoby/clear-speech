@@ -3,14 +3,58 @@ from sqlalchemy.orm import Session, joinedload
 import shutil
 import os
 import uuid
+import tempfile
+import json
+import numpy as np
+import soundfile as sf
 from fastapi.responses import FileResponse
-from typing import List
+from typing import List, Optional
+from sqlalchemy import or_
+import google.generativeai as genai
+from transformers import pipeline as hf_pipeline
 
 # Local imports
 import database
 import models
 import schemas
 import auth
+
+# ── Whisper ASR (loaded once, reused for every grading request) ──────────────
+_asr_pipeline = None
+
+def get_asr_pipeline():
+    global _asr_pipeline
+    if _asr_pipeline is None:
+        print("[grading] Loading Whisper base model (first call – ~145 MB download)…")
+        _asr_pipeline = hf_pipeline("automatic-speech-recognition", model="openai/whisper-base")
+        print("[grading] Whisper model ready.")
+    return _asr_pipeline
+
+
+# ── Gemini grading ────────────────────────────────────────────────────────────
+def grade_with_gemini(word: str, transcription: str) -> dict:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name="gemini-2.5-flash",
+        generation_config=genai.GenerationConfig(
+            response_mime_type="application/json",
+            temperature=0.2,
+        ),
+        system_instruction=(
+            "You are a speech therapy AI evaluating a child's pronunciation. "
+            "Return a JSON object with exactly two keys: "
+            "\"score\" (integer 0-100, where 100 = perfect pronunciation) and "
+            "\"feedback\" (string, 2-3 sentences of specific, encouraging phonetic advice)."
+        ),
+    )
+    response = model.generate_content(
+        f'Target word: "{word}"\nWhat the patient said (transcribed): "{transcription}"'
+    )
+    return json.loads(response.text)
 
 router = APIRouter(
     prefix="/recordings",
@@ -24,9 +68,11 @@ if not os.path.exists(UPLOAD_DIR):
 
 @router.post("/upload", response_model=schemas.RecordingOut)
 async def upload_audio(
-        assignment_id: uuid.UUID = Form(...),  # CHANGED: Now expects assignment_id
+        assignment_id: uuid.UUID = Form(...),
         word_id: int = Form(...),
         file: UploadFile = File(...),
+        score: Optional[int] = Form(None),
+        feedback: Optional[str] = Form(None),
         db: Session = Depends(database.get_db),
         current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -61,15 +107,19 @@ async def upload_audio(
     finally:
         file.file.close()
 
-    # 5. Create the database record linked to the assignment
+    # 5. Create the database record; auto-flag for clinician review if score is poor
     new_recording = models.Recording(
         patient_id=current_user.id,
-        clinician_id=assignment.clinician_id,  # Inherited from the assignment
-        assignment_id=assignment.id,           # CHANGED: Using assignment.id
-        target_sound=assignment.target_sound,  # Pulled automatically via the @property
+        clinician_id=assignment.clinician_id,
+        assignment_id=assignment.id,
+        target_sound=assignment.target_sound,
         file_path=file_path,
         word_id=word_id,
-        is_reviewed=False
+        is_reviewed=False,
+        score=score,
+        feedback=feedback,
+        marked_by_clinician=(score is not None and score < 50),
+        marked_by_patient=False,
     )
 
     db.add(new_recording)
@@ -129,3 +179,118 @@ def play_recording(
 
     # 4. Return the file
     return FileResponse(path=recording.file_path, media_type="audio/ogg")
+
+
+@router.post("/grade")
+def grade_audio(
+        file: UploadFile = File(...),
+        word: str = Form(...),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Accepts a WAV audio file and a target word.
+    Transcribes with Whisper, grades with Claude, returns {score, feedback}.
+    Runs as a sync route so FastAPI executes it in a thread pool (keeps Whisper off the event loop).
+    """
+    # Save upload to a temp WAV file
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        print(f"[grade] Transcribing audio for target word '{word}'…")
+        # Load WAV with soundfile (no ffmpeg needed — handles PCM WAV natively)
+        audio_array, sample_rate = sf.read(tmp_path, dtype="float32")
+        if audio_array.ndim > 1:           # collapse stereo → mono
+            audio_array = audio_array.mean(axis=1)
+        pipe = get_asr_pipeline()
+        transcription = pipe({"array": audio_array, "sampling_rate": sample_rate})["text"].strip()
+        print(f"[grade] Transcription: '{transcription}'")
+
+        result = grade_with_gemini(word, transcription)
+        print(f"[grade] Score: {result.get('score')} | Feedback: {result.get('feedback', '')[:60]}…")
+        return result
+
+    except json.JSONDecodeError:
+        return {"score": 50, "feedback": "The AI response could not be parsed. Please try recording again."}
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        print(f"[grade] Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Grading failed: {str(e)}")
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@router.get("/my-flagged", response_model=List[schemas.RecordingOut])
+def get_my_flagged_recordings(
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """Returns the patient's own words they have starred for their next appointment."""
+    if current_user.role != "patient":
+        raise HTTPException(status_code=403, detail="Only patients can use this endpoint.")
+    return (
+        db.query(models.Recording)
+        .options(joinedload(models.Recording.word))
+        .filter(
+            models.Recording.patient_id == current_user.id,
+            models.Recording.marked_by_patient == True
+        )
+        .all()
+    )
+
+
+@router.patch("/{recording_id}/toggle-flag", response_model=schemas.RecordingOut)
+def toggle_attention_flag(
+        recording_id: uuid.UUID,
+        data: schemas.RecordingFlagToggle,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """Toggles marked_by_clinician or marked_by_patient on a recording."""
+    recording = db.query(models.Recording).filter(
+        models.Recording.id == str(recording_id)
+    ).first()
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found.")
+
+    if data.flag == "clinician":
+        if current_user.role != "clinician" or current_user.id != recording.clinician_id:
+            raise HTTPException(status_code=403, detail="Not authorized.")
+        recording.marked_by_clinician = not recording.marked_by_clinician
+    elif data.flag == "patient":
+        if current_user.role != "patient" or current_user.id != recording.patient_id:
+            raise HTTPException(status_code=403, detail="Not authorized.")
+        recording.marked_by_patient = not recording.marked_by_patient
+    else:
+        raise HTTPException(status_code=400, detail="flag must be 'clinician' or 'patient'.")
+
+    db.commit()
+    db.refresh(recording)
+    return recording
+
+
+@router.get("/flagged/{patient_id}", response_model=List[schemas.RecordingOut])
+def get_flagged_recordings(
+        patient_id: uuid.UUID,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    """Returns all recordings flagged by either party for a given patient (clinician-only)."""
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Only clinicians can view flagged words.")
+    return (
+        db.query(models.Recording)
+        .options(joinedload(models.Recording.word))
+        .filter(
+            models.Recording.patient_id == patient_id,
+            models.Recording.clinician_id == current_user.id,
+            or_(
+                models.Recording.marked_by_clinician == True,
+                models.Recording.marked_by_patient == True,
+            )
+        )
+        .all()
+    )

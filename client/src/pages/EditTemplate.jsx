@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 
@@ -8,7 +8,8 @@ function imgSrc(imageUrl) {
   return imageUrl.startsWith('http') ? imageUrl : `http://127.0.0.1:8000${imageUrl}`
 }
 
-function CreateTemplate() {
+function EditTemplate() {
+  const { templateId } = useParams()
   const navigate = useNavigate()
 
   const [title, setTitle] = useState('')
@@ -18,60 +19,52 @@ function CreateTemplate() {
   const [allWords, setAllWords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
-  // Add-word state
-  const [isAddWordOpen, setIsAddWordOpen] = useState(false)
-  const [newWordText, setNewWordText] = useState('')
-  const [isWordLoading, setIsWordLoading] = useState(false)
-  const [wordAddError, setWordAddError] = useState('')
-
-  // Audio state
-  const [audioUploading, setAudioUploading] = useState(new Set())   // file upload in progress
-  const [generatingAudio, setGeneratingAudio] = useState(new Set()) // gTTS generation in progress
-  const [recordingWordId, setRecordingWordId] = useState(null)      // which word is being mic-recorded
+  const [audioUploading, setAudioUploading] = useState(new Set())
+  const [generatingAudio, setGeneratingAudio] = useState(new Set())
+  const [recordingWordId, setRecordingWordId] = useState(null)
   const [isRecording, setIsRecording] = useState(false)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef  = useRef([])
-  const streamRef       = useRef(null)    // holds the live MediaStream for external abort
-  const isAbortedRef    = useRef(false)   // abort flag checked at top of onstop to block upload on race
-
-  // Per-card overrides: { wordId: 'text' | 'sound' } and { wordId: 'ai' | 'record' }
+  const streamRef       = useRef(null)
+  const isAbortedRef    = useRef(false)
   const [wordTypeMap,    setWordTypeMap]    = useState({})
   const [audioSourceMap, setAudioSourceMap] = useState({})
-
-  // Session-level audio URL caches (so source switching can restore the right track)
-  const [aiAudioByWord,     setAiAudioByWord]     = useState({})  // { wordId: url }
-  const [customAudioByWord, setCustomAudioByWord] = useState({})  // { wordId: url }
-
-  // Preview playback
-  const [playingWordId, setPlayingWordId] = useState(null)
+  const [aiAudioByWord,     setAiAudioByWord]     = useState({})
+  const [customAudioByWord, setCustomAudioByWord] = useState({})
+  const [playingWordId,  setPlayingWordId]  = useState(null)
   const audioPreviewRef = useRef(null)
 
   useEffect(() => {
-    const fetchWords = async () => {
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem('token')
-        const response = await axios.get('http://127.0.0.1:8000/practice/words', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setAllWords(response.data)
-        // Pre-populate the AI audio cache from DB values so the Listen button
-        // works on the first session without requiring a manual re-generation.
+        const headers = { Authorization: `Bearer ${token}` }
+
+        const [wordsRes, templateRes] = await Promise.all([
+          axios.get('http://127.0.0.1:8000/practice/words', { headers }),
+          axios.get(`http://127.0.0.1:8000/practice/templates/${templateId}`, { headers })
+        ])
+
+        setAllWords(wordsRes.data)
         const initAi = {}
-        response.data.forEach(w => { if (w.practice_type === 'sound' && w.audio_url) initAi[w.id] = w.audio_url })
+        wordsRes.data.forEach(w => { if (w.practice_type === 'sound' && w.audio_url) initAi[w.id] = w.audio_url })
         setAiAudioByWord(initAi)
+        setTitle(templateRes.data.title)
+        setTargetSound(templateRes.data.target_sound)
+        setSelectedWordIds(templateRes.data.word_ids)
         setLoading(false)
       } catch (err) {
-        console.error("Failed to fetch words:", err)
-        setError("Could not load the word bank.")
+        console.error("Failed to load template:", err)
+        setError("Could not load template data.")
         setLoading(false)
       }
     }
-    fetchWords()
-  }, [])
+    fetchData()
+  }, [templateId])
 
   const filteredWords = allWords.filter(word =>
-    targetSound === '' || word.text.toLowerCase().includes(targetSound.toLowerCase()) ||
+    targetSound === '' ||
+    word.text.toLowerCase().includes(targetSound.toLowerCase()) ||
     (word.phonetic_trans && word.phonetic_trans.includes(targetSound))
   )
 
@@ -81,60 +74,11 @@ function CreateTemplate() {
     )
   }
 
-  const handleAddWord = async () => {
-    if (!newWordText.trim()) return
-    setIsWordLoading(true)
-    setWordAddError('')
-    try {
-      const token = localStorage.getItem('token')
-      const headers = { Authorization: `Bearer ${token}` }
-
-      // 1. Create the word (practice_type is always set per card later, not here)
-      const wordRes = await axios.post(
-        'http://127.0.0.1:8000/practice/words',
-        { text: newWordText.trim() },
-        { headers }
-      )
-      let newWord = wordRes.data
-
-      // 2. Always generate AI audio — gTTS cache makes repeated words instant
-      try {
-        const audioRes = await axios.post(
-          'http://127.0.0.1:8000/practice/audio/generate',
-          { word_id: newWord.id, text: newWord.text },
-          { headers }
-        )
-        newWord = { ...newWord, audio_url: audioRes.data.audio_url }
-        setAiAudioByWord(prev => ({ ...prev, [newWord.id]: audioRes.data.audio_url }))
-      } catch (audioErr) {
-        console.warn('[AddWord] AI audio generation failed:', audioErr)
-        // Non-fatal — word is added without audio
-      }
-
-      setAllWords(prev => prev.find(w => w.id === newWord.id) ? prev : [...prev, newWord])
-      setSelectedWordIds(prev => prev.includes(newWord.id) ? prev : [...prev, newWord.id])
-
-      // Auto-play so the clinician hears the word immediately
-      if (newWord.audio_url) {
-        new Audio(`http://127.0.0.1:8000${newWord.audio_url}`).play().catch(console.error)
-      }
-
-      setNewWordText('')
-      setIsAddWordOpen(false)
-    } catch (err) {
-      setWordAddError(err.response?.data?.detail || 'Failed to add word.')
-    } finally {
-      setIsWordLoading(false)
-    }
-  }
-
   const playPreview = (wordId, audioUrl) => {
-    // Hard-stop and destroy any currently playing Audio object (the "key prop" equivalent
-    // for imperative Audio — forces the browser to release the old source from memory)
     if (audioPreviewRef.current) {
       audioPreviewRef.current.pause()
-      audioPreviewRef.current.src = ''   // flush Blob/server URL from the browser's media pipeline
-      audioPreviewRef.current.load()     // force the media element to reset its internal state
+      audioPreviewRef.current.src = ''
+      audioPreviewRef.current.load()
       audioPreviewRef.current = null
     }
     if (playingWordId === wordId) { setPlayingWordId(null); return }
@@ -148,19 +92,16 @@ function CreateTemplate() {
   }
 
   const handleSetAudioSource = (wordId, source) => {
-    // If this word's mic is active and we're switching away, abort it immediately
     if (isRecording && recordingWordId === wordId) {
       abortRecording()
     }
-    // Unconditionally destroy the current Audio object on every source toggle so the
-    // browser cannot cache or replay the previous source's media pipeline.
     if (audioPreviewRef.current) {
       audioPreviewRef.current.pause()
       audioPreviewRef.current.src = ''
       audioPreviewRef.current.load()
       audioPreviewRef.current = null
     }
-    setPlayingWordId(null)  // always reset, regardless of whether audio was playing
+    setPlayingWordId(null)
     setAudioSourceMap(prev => ({ ...prev, [wordId]: source }))
     if (source === 'ai' && aiAudioByWord[wordId]) {
       setAllWords(prev => prev.map(w => w.id === wordId ? { ...w, audio_url: aiAudioByWord[wordId] } : w))
@@ -205,7 +146,7 @@ function CreateTemplate() {
 
   const startRecordingForWord = async (wordId) => {
     try {
-      isAbortedRef.current = false   // fresh recording — clear any previous abort flag
+      isAbortedRef.current = false
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       const mediaRecorder = new MediaRecorder(stream)
@@ -213,8 +154,6 @@ function CreateTemplate() {
       audioChunksRef.current = []
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mediaRecorder.onstop = async () => {
-        // Abort flag check: if abortRecording() ran before this event fired (race condition),
-        // discard all audio and do NOT upload — keeps aiAudioByWord untouched.
         if (isAbortedRef.current) {
           streamRef.current = null
           stream.getTracks().forEach(t => t.stop())
@@ -243,22 +182,20 @@ function CreateTemplate() {
   }
 
   const abortRecording = () => {
-    isAbortedRef.current = true   // checked at top of onstop; blocks upload even if event fires late
+    isAbortedRef.current = true
     if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.onstop = null   // best-effort null; abort flag is the real guard
+      mediaRecorderRef.current.onstop = null
       if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop()
       mediaRecorderRef.current = null
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())  // kills browser mic indicator
+      streamRef.current.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
     setRecordingWordId(null)
     setIsRecording(false)
   }
 
-  // Safety net: if audioSourceMap changes to anything other than 'record' while the mic
-  // is active, abort the recording so it can never run silently in the background.
   useEffect(() => {
     if (!isRecording || recordingWordId === null) return
     if ((audioSourceMap[recordingWordId] ?? 'record') !== 'record') {
@@ -295,29 +232,29 @@ function CreateTemplate() {
     }
     try {
       const token = localStorage.getItem('token')
-      await axios.post('http://127.0.0.1:8000/practice/templates', {
+      await axios.put(`http://127.0.0.1:8000/practice/templates/${templateId}`, {
         title,
         target_sound: targetSound,
         word_ids: selectedWordIds
       }, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      alert("✅ Practice Template created successfully!")
       navigate('/practices')
     } catch (err) {
-      console.error("Failed to create template:", err)
-      alert("Error creating template. Please try again.")
+      console.error("Failed to update template:", err)
+      alert("Error saving changes. Please try again.")
     }
   }
 
+  if (loading) return <div style={{ padding: '40px 48px' }}><p>Loading...</p></div>
+  if (error) return <div style={{ padding: '40px 48px' }}><p className="error-msg">{error}</p></div>
+
   return (
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
-
-      <h2 style={{ margin: '0 0 20px 0' }}>Create New Practice</h2>
+      <h2 style={{ margin: '0 0 20px 0' }}>Edit Practice</h2>
 
       <form onSubmit={handleSubmit} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
 
-        {/* Step 1: Basic Info */}
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
           <div style={{ flex: 1 }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Practice Title:</label>
@@ -343,70 +280,10 @@ function CreateTemplate() {
           </div>
         </div>
 
-        {/* Step 2: Word Selection */}
         <div style={{ borderTop: '1px solid #eee', paddingTop: '20px' }}>
-
-          {/* Section header row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h3 style={{ margin: 0 }}>
-              Select Words ({selectedWordIds.length} selected)
-            </h3>
-            {!isAddWordOpen && (
-              <button
-                type="button"
-                onClick={() => { setIsAddWordOpen(true); setWordAddError('') }}
-                className="btn-outline"
-                style={{ width: 'auto', margin: 0, padding: '7px 16px', fontSize: '0.875rem' }}
-              >
-                + Add Word
-              </button>
-            )}
-          </div>
-
-          {/* Add-word inline panel */}
-          {isAddWordOpen && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                value={newWordText}
-                onChange={e => setNewWordText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddWord())}
-                placeholder="Type a word (e.g. sun)"
-                disabled={isWordLoading}
-                autoFocus
-                style={{ flex: 1, minWidth: '160px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.9rem', fontFamily: 'inherit' }}
-              />
-
-              <button
-                type="button"
-                onClick={handleAddWord}
-                disabled={isWordLoading || !newWordText.trim()}
-                className="btn-create"
-                style={{ flexShrink: 0 }}
-              >
-                {isWordLoading ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-                    Saving…
-                  </span>
-                ) : 'Save Word'}
-              </button>
-              <button
-                type="button"
-                disabled={isWordLoading}
-                onClick={() => { setIsAddWordOpen(false); setNewWordText(''); setWordAddError('') }}
-                style={{ flexShrink: 0, background: 'none', border: '1px solid #d1d5db', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'inherit', color: '#6b7280' }}
-              >
-                Cancel
-              </button>
-              {wordAddError && (
-                <span style={{ width: '100%', color: '#ef4444', fontSize: '0.85rem', marginTop: '4px' }}>{wordAddError}</span>
-              )}
-            </div>
-          )}
-
-          {loading && <p>Loading word bank...</p>}
-          {error && <p style={{ color: 'red' }}>{error}</p>}
+          <h3 style={{ marginBottom: '15px' }}>
+            Select Words ({selectedWordIds.length} selected)
+          </h3>
 
           <div style={{
             display: 'grid',
@@ -417,60 +294,43 @@ function CreateTemplate() {
             padding: '5px'
           }}>
             {filteredWords.map(word => {
-              const isSelected    = selectedWordIds.includes(word.id)
-              const src           = imgSrc(word.image_url)
-              const wordType      = wordTypeMap[word.id] ?? word.practice_type ?? 'text'
-              const audioSource   = audioSourceMap[word.id] ?? 'ai'
-              const isBusy        = audioUploading.has(word.id) || generatingAudio.has(word.id)
+              const isSelected      = selectedWordIds.includes(word.id)
+              const wordType        = wordTypeMap[word.id] ?? word.practice_type ?? 'text'
+              const audioSource     = audioSourceMap[word.id] ?? 'ai'
+              const isBusy          = audioUploading.has(word.id) || generatingAudio.has(word.id)
               const isRecordingThis = recordingWordId === word.id
-              const btnBase       = { fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid' }
+              const btnBase         = { fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid' }
 
               // Source-isolated URLs — no cross-source fallbacks
               const aiUrl     = aiAudioByWord[word.id] || null
               const customUrl = customAudioByWord[word.id] || null
               const activeUrl = audioSource === 'ai' ? aiUrl : customUrl
-
               return (
                 <div
                   key={word.id}
                   onClick={() => toggleWordSelection(word.id)}
-                  style={{
-                    border: isSelected ? '3px solid #3b82f6' : '1px solid #d1d5db',
-                    borderRadius: '8px', padding: '10px', cursor: 'pointer',
-                    backgroundColor: isSelected ? '#eff6ff' : 'white',
-                    textAlign: 'center', transition: 'all 0.2s'
-                  }}
+                  style={{ border: isSelected ? '3px solid #3b82f6' : '1px solid #d1d5db', borderRadius: '8px', padding: '10px', cursor: 'pointer', backgroundColor: isSelected ? '#eff6ff' : 'white', textAlign: 'center', transition: 'all 0.2s' }}
                 >
-                  {src ? (
-                    <img src={src} alt={word.text} style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '5px', marginBottom: '6px' }} />
+                  {imgSrc(word.image_url) ? (
+                    <img src={imgSrc(word.image_url)} alt={word.text} style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '5px', marginBottom: '6px' }} />
                   ) : (
                     <div style={{ width: '72px', height: '72px', backgroundColor: '#f3f4f6', borderRadius: '5px', margin: '0 auto 6px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: '#9ca3af' }}>No Img</div>
                   )}
-
                   <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '7px', color: '#111827' }}>
                     {word.text}
                   </div>
-
-                  {/* ── Master toggle: Text / Sound ── */}
                   <div onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginBottom: '5px' }}>
                       {[['text', 'Text'], ['sound', '🔊 Sound']].map(([val, lbl]) => (
-                        <button key={val} type="button"
-                          onClick={() => handleSetWordType(word.id, val)}
-                          style={{
-                            ...btnBase,
-                            borderColor: wordType === val ? (val === 'sound' ? '#059669' : '#2563eb') : '#d1d5db',
-                            backgroundColor: wordType === val ? (val === 'sound' ? '#059669' : '#2563eb') : 'white',
-                            color: wordType === val ? 'white' : '#9ca3af',
-                          }}
-                        >{lbl}</button>
+                        <button key={val} type="button" onClick={() => handleSetWordType(word.id, val)}
+                          style={{ ...btnBase, borderColor: wordType === val ? (val === 'sound' ? '#059669' : '#2563eb') : '#d1d5db', backgroundColor: wordType === val ? (val === 'sound' ? '#059669' : '#2563eb') : 'white', color: wordType === val ? 'white' : '#9ca3af' }}>
+                          {lbl}
+                        </button>
                       ))}
                     </div>
-
-                    {/* ── Sound sub-menu ── */}
                     {wordType === 'sound' && (
                       <div>
-                        {/* ▶ Listen — resolves the URL dynamically at click time to avoid stale closures */}
+                        {/* ▶ Listen — resolves URL dynamically at click time */}
                         {activeUrl && (
                           <button type="button"
                             onClick={() => {
@@ -483,51 +343,38 @@ function CreateTemplate() {
                             {playingWordId === word.id ? '⏸ Pause' : '▶ Listen'}
                           </button>
                         )}
-
-                        {/* Source radio row */}
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '4px' }}>
                           {[['ai', '🤖 AI'], ['record', '🎤 Custom']].map(([val, lbl]) => (
                             <label key={val} style={{ fontSize: '0.6rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', color: audioSource === val ? '#111827' : '#9ca3af' }}>
-                              <input
-                                type="radio"
-                                name={`src-${word.id}`}
-                                checked={audioSource === val}
+                              <input type="radio" name={`src-${word.id}`} checked={audioSource === val}
                                 onChange={() => handleSetAudioSource(word.id, val)}
-                                style={{ width: '10px', height: '10px', accentColor: '#2563eb' }}
-                              />
+                                style={{ width: '10px', height: '10px', accentColor: '#2563eb' }} />
                               {lbl}
                             </label>
                           ))}
                         </div>
-
-                        {/* Action area — strictly separated by source; no cross-bleeding */}
                         {isBusy ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'center' }}>
                             <span style={{ width: '11px', height: '11px', border: '2px solid #e5e7eb', borderTopColor: '#3b82f6', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
                             <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>Processing…</span>
                           </div>
                         ) : audioSource === 'ai' ? (
-                          /* AI branch — only Generate button; never shows mic/record UI */
+                          /* AI branch — Generate button only; mic/record UI completely hidden */
                           !aiUrl ? (
-                            <button type="button"
-                              onClick={() => handleGenerateAudio(word.id, word.text)}
-                              disabled={!!recordingWordId}
+                            <button type="button" onClick={() => handleGenerateAudio(word.id, word.text)} disabled={!!recordingWordId}
                               style={{ ...btnBase, backgroundColor: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' }}>
                               Generate AI
                             </button>
                           ) : null
                         ) : (
-                          /* Custom Record branch — only mic UI; never shows AI buttons */
+                          /* Custom Record branch — mic UI only; AI buttons completely hidden */
                           isRecordingThis ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'center' }}>
                               <span style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 700 }}>🔴</span>
-                              <button type="button" onClick={stopRecordingForWord}
-                                style={{ fontSize: '0.58rem', padding: '1px 5px', backgroundColor: '#374151', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Stop</button>
+                              <button type="button" onClick={stopRecordingForWord} style={{ fontSize: '0.58rem', padding: '1px 5px', backgroundColor: '#374151', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Stop</button>
                             </div>
                           ) : (
-                            <button type="button"
-                              onClick={() => startRecordingForWord(word.id)}
-                              disabled={!!recordingWordId}
+                            <button type="button" onClick={() => startRecordingForWord(word.id)} disabled={!!recordingWordId}
                               style={{ ...btnBase, backgroundColor: '#fff1f2', color: '#dc2626', borderColor: '#fecaca' }}>
                               {customAudioByWord[word.id] ? '🎤 Re-record' : 'Start Mic'}
                             </button>
@@ -541,21 +388,17 @@ function CreateTemplate() {
             })}
           </div>
 
-          {filteredWords.length === 0 && !loading && (
+          {filteredWords.length === 0 && (
             <p style={{ color: '#6b7280', textAlign: 'center' }}>No words found for this target sound.</p>
           )}
-
         </div>
 
         <button type="submit" className="btn-primary" style={{ marginTop: '20px', width: '100%', padding: '12px', fontSize: '1.1rem', backgroundColor: '#3b82f6' }}>
-          Save Practice Template
+          Save Changes
         </button>
-
       </form>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
 
-export default CreateTemplate
+export default EditTemplate
