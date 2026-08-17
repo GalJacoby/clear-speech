@@ -3,18 +3,74 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { Trash2 } from 'lucide-react'
 import '../App.css'
+import { API_URL } from '../config'
 
 function imgSrc(imageUrl) {
   if (!imageUrl) return null
-  return imageUrl.startsWith('http') ? imageUrl : `http://127.0.0.1:8000${imageUrl}`
+  return imageUrl.startsWith('http') ? imageUrl : `${API_URL}${imageUrl}`
 }
 
 function CreateTemplate() {
   const navigate = useNavigate()
 
+  // Which mode is selected: null = chooser, 'words' = word bank form, 'sounds' = letter sounds form
+  const [practiceMode, setPracticeMode] = useState(null)
+
+  // ── Word Bank form state ─────────────────────────────────────────────────────
   const [title, setTitle] = useState('')
   const [targetSound, setTargetSound] = useState('')
   const [selectedWordIds, setSelectedWordIds] = useState([])
+
+  // ── Letter Sounds form state ─────────────────────────────────────────────────
+  const [soundsTitle, setSoundsTitle] = useState('')
+  const [targetPhoneme, setTargetPhoneme] = useState('')
+  const [syllables, setSyllables] = useState([])
+  const [repetitionCount, setRepetitionCount] = useState(3)
+  const [newSyllableInput, setNewSyllableInput] = useState('')
+
+  const VOWELS = ['a', 'e', 'i', 'o', 'u']
+
+  const handlePhonemeChange = (value) => {
+    setTargetPhoneme(value)
+    if (value.trim()) {
+      setSyllables(VOWELS.map(v => `${value.trim().toLowerCase()}${v}`))
+    } else {
+      setSyllables([])
+    }
+  }
+
+  const removeSyllable = (syl) => setSyllables(prev => prev.filter(s => s !== syl))
+
+  const addCustomSyllable = () => {
+    const val = newSyllableInput.trim().toLowerCase()
+    if (val && !syllables.includes(val)) {
+      setSyllables(prev => [...prev, val])
+    }
+    setNewSyllableInput('')
+  }
+
+  const handleSubmitSounds = async (e) => {
+    e.preventDefault()
+    if (!soundsTitle.trim()) { alert("Please enter a practice title."); return }
+    if (!targetPhoneme.trim()) { alert("Please enter a target phoneme."); return }
+    if (syllables.length === 0) { alert("Please add at least one syllable."); return }
+    try {
+      const token = localStorage.getItem('token')
+      await axios.post(`${API_URL}/practice/templates`, {
+        title: soundsTitle.trim(),
+        target_sound: targetPhoneme.trim(),
+        word_ids: [],
+        practice_type: 'sounds',
+        syllable_prompts: syllables,
+        repetition_count: repetitionCount,
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      alert("✅ Letter Sounds Practice created successfully!")
+      navigate('/practices')
+    } catch (err) {
+      console.error("Failed to create sounds template:", err)
+      alert("Error creating practice. Please try again.")
+    }
+  }
 
   const [allWords, setAllWords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +109,7 @@ function CreateTemplate() {
     const fetchWords = async () => {
       try {
         const token = localStorage.getItem('token')
-        const response = await axios.get('http://127.0.0.1:8000/practice/words', {
+        const response = await axios.get(`${API_URL}/practice/words`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         setAllWords(response.data)
@@ -93,7 +149,7 @@ function CreateTemplate() {
 
       // 1. Create the word (practice_type is always set per card later, not here)
       const wordRes = await axios.post(
-        'http://127.0.0.1:8000/practice/words',
+        `${API_URL}/practice/words`,
         { text: newWordText.trim() },
         { headers }
       )
@@ -102,7 +158,7 @@ function CreateTemplate() {
       // 2. Always generate AI audio — gTTS cache makes repeated words instant
       try {
         const audioRes = await axios.post(
-          'http://127.0.0.1:8000/practice/audio/generate',
+          `${API_URL}/practice/audio/generate`,
           { word_id: newWord.id, text: newWord.text },
           { headers }
         )
@@ -118,7 +174,7 @@ function CreateTemplate() {
 
       // Auto-play so the clinician hears the word immediately
       if (newWord.audio_url) {
-        new Audio(`http://127.0.0.1:8000${newWord.audio_url}`).play().catch(console.error)
+        new Audio(`${API_URL}${newWord.audio_url}`).play().catch(console.error)
       }
 
       setNewWordText('')
@@ -134,7 +190,7 @@ function CreateTemplate() {
     if (!audioUrl) return null
     // blob: and http(s): URLs are used as-is; server-relative paths get prefixed
     if (audioUrl.startsWith('blob:') || audioUrl.startsWith('http')) return audioUrl
-    return `http://127.0.0.1:8000${audioUrl}`
+    return `${API_URL}${audioUrl}`
   }
 
   const playPreview = (wordId, audioUrl) => {
@@ -147,23 +203,39 @@ function CreateTemplate() {
     if (playingWordId === wordId) { setPlayingWordId(null); return }
     const src = resolveAudioSrc(audioUrl)
     if (!src) return
-    console.log('[ClearSpeech] Playing audio source:', src)
-    const a = new Audio(src)
+
+    const a = new Audio()
     audioPreviewRef.current = a
+
     a.onended = () => { setPlayingWordId(null); audioPreviewRef.current = null }
-    // Graceful 404 / network error — disable the button without crashing
     a.onerror = () => {
       console.warn('[ClearSpeech] Audio unavailable:', src)
       setPlayingWordId(null)
       audioPreviewRef.current = null
-      // Null out the URL in local state so the Listen button hides itself
-      setAllWords(prev => prev.map(w =>
-        w.id === wordId ? { ...w, audio_url: null } : w
-      ))
-      setAiAudioByWord(prev => { const n = { ...prev }; delete n[wordId]; return n })
+      if (!src.startsWith('blob:')) {
+        setAllWords(prev => prev.map(w => w.id === wordId ? { ...w, audio_url: null } : w))
+        setAiAudioByWord(prev => { const n = { ...prev }; delete n[wordId]; return n })
+      }
     }
-    a.play().catch(e => console.error('[ClearSpeech] Playback error:', e))
-    setPlayingWordId(wordId)
+
+    const doPlay = () => {
+      a.play()
+        .then(() => setPlayingWordId(wordId))
+        .catch(e => {
+          console.error('[ClearSpeech] Playback error:', e)
+          audioPreviewRef.current = null
+        })
+    }
+
+    if (src.startsWith('blob:')) {
+      // Blob URLs must be fully loaded before play() — set src, load(), then play on canplaythrough
+      a.addEventListener('canplaythrough', doPlay, { once: true })
+      a.src = src
+      a.load()
+    } else {
+      a.src = src
+      doPlay()
+    }
   }
 
   const handleSetAudioSource = async (wordId, source) => {
@@ -185,7 +257,7 @@ function CreateTemplate() {
         const word = allWords.find(w => w.id === wordId)
         if (word) {
           await axios.post(
-            'http://127.0.0.1:8000/practice/audio/generate',
+            `${API_URL}/practice/audio/generate`,
             { word_id: wordId, text: word.text },
             { headers: { Authorization: `Bearer ${token}` } }
           )
@@ -202,7 +274,7 @@ function CreateTemplate() {
     if (!window.confirm(`Delete "${wordText}" from the word bank? Existing practices that use this word will not be affected.`)) return
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/practice/words/${wordId}`, {
+      await axios.delete(`${API_URL}/practice/words/${wordId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setAllWords(prev => prev.filter(w => w.id !== wordId))
@@ -217,7 +289,7 @@ function CreateTemplate() {
     try {
       const token = localStorage.getItem('token')
       await axios.patch(
-        `http://127.0.0.1:8000/practice/words/${wordId}/type`,
+        `${API_URL}/practice/words/${wordId}/type`,
         { practice_type: newType },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -233,7 +305,7 @@ function CreateTemplate() {
     try {
       const token = localStorage.getItem('token')
       const res = await axios.post(
-        'http://127.0.0.1:8000/practice/audio/generate',
+        `${API_URL}/practice/audio/generate`,
         { word_id: wordId, text: wordText },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -265,9 +337,10 @@ function CreateTemplate() {
         stream.getTracks().forEach(t => t.stop())
         setRecordingWordId(null)
         setIsRecording(false)
-        // STATE PROTECTION: create a local blob URL — never upload or touch word.audio_url in DB.
-        // The word's AI audio_url remains intact so re-entering the page always plays AI audio.
-        const blob    = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        // Use the recorder's actual MIME type so the blob is decodable on every browser
+        // (Chrome=audio/webm, Firefox=audio/ogg, Safari=audio/mp4)
+        const mimeType = mediaRecorder.mimeType || 'audio/webm'
+        const blob    = new Blob(audioChunksRef.current, { type: mimeType })
         const blobUrl = URL.createObjectURL(blob)
         customBlobUrlsRef.current.push(blobUrl)
         setCustomAudioByWord(prev => ({ ...prev, [wordId]: blobUrl }))
@@ -340,7 +413,7 @@ function CreateTemplate() {
       const formData = new FormData()
       formData.append('file', file)
       const res = await axios.post(
-        `http://127.0.0.1:8000/practice/words/${wordId}/audio`,
+        `${API_URL}/practice/words/${wordId}/audio`,
         formData,
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
       )
@@ -361,10 +434,11 @@ function CreateTemplate() {
     }
     try {
       const token = localStorage.getItem('token')
-      await axios.post('http://127.0.0.1:8000/practice/templates', {
+      await axios.post(`${API_URL}/practice/templates`, {
         title,
         target_sound: targetSound,
-        word_ids: selectedWordIds
+        word_ids: selectedWordIds,
+        practice_type: 'words',
       }, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -376,13 +450,187 @@ function CreateTemplate() {
     }
   }
 
+  // ── Type Chooser ─────────────────────────────────────────────────────────────
+  if (practiceMode === null) {
+    return (
+      <div style={{ padding: '20px', maxWidth: '680px', margin: '0 auto' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '20px' }}>
+          ← Back
+        </button>
+        <h2 style={{ margin: '0 0 6px 0', color: '#111827' }}>Create New Practice</h2>
+        <p style={{ margin: '0 0 32px 0', color: '#6b7280', fontSize: '0.95rem' }}>Choose the type of practice you'd like to create.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+
+          {/* Word Bank card */}
+          <button
+            type="button"
+            onClick={() => setPracticeMode('words')}
+            style={{ background: 'white', border: '2px solid #e5e7eb', borderRadius: '14px', padding: '28px 24px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', fontFamily: 'inherit' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(59,130,246,0.15)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}
+          >
+            <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>📖</div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.05rem', color: '#111827' }}>Word Bank Practice</h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.5 }}>
+              Pick words from the library and practice pronouncing them. Great for vocabulary and articulation work.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {['sun', 'ship', 'star', 'snake'].map(w => (
+                <span key={w} style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', backgroundColor: '#eff6ff', color: '#1d4ed8', fontWeight: 600 }}>{w}</span>
+              ))}
+            </div>
+          </button>
+
+          {/* Letter Sounds card */}
+          <button
+            type="button"
+            onClick={() => setPracticeMode('sounds')}
+            style={{ background: 'white', border: '2px solid #e5e7eb', borderRadius: '14px', padding: '28px 24px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', fontFamily: 'inherit' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#ec4899'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(236,72,153,0.15)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' }}
+          >
+            <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>🔤</div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.05rem', color: '#111827' }}>Letter Sounds Practice</h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.5 }}>
+              Create syllable drills for a target phoneme. Perfect for isolating and repeating specific sounds.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {['sha', 'she', 'shi', 'sho', 'shu'].map(s => (
+                <span key={s} style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '999px', backgroundColor: '#fce7f3', color: '#9d174d', fontWeight: 600 }}>{s}</span>
+              ))}
+            </div>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Letter Sounds Form ────────────────────────────────────────────────────────
+  if (practiceMode === 'sounds') {
+    return (
+      <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+        <button onClick={() => setPracticeMode(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '10px' }}>
+          ← Back
+        </button>
+        <h2 style={{ margin: '0 0 4px 0', color: '#111827' }}>Letter Sounds Practice</h2>
+        <p style={{ margin: '0 0 24px 0', color: '#6b7280', fontSize: '0.9rem' }}>Set a target phoneme and configure syllable drills with a repetition goal.</p>
+
+        <form onSubmit={handleSubmitSounds} style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Title */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '0.875rem', color: '#374151' }}>Practice Title</label>
+            <input
+              type="text"
+              required
+              value={soundsTitle}
+              onChange={e => setSoundsTitle(e.target.value)}
+              placeholder="e.g., SH Sound Drills — Beginners"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* Target Phoneme */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '0.875rem', color: '#374151' }}>Target Phoneme</label>
+            <input
+              type="text"
+              required
+              value={targetPhoneme}
+              onChange={e => handlePhonemeChange(e.target.value)}
+              placeholder="e.g., sh, s, r, l"
+              style={{ width: '220px', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.9rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            {targetPhoneme.trim() && (
+              <p style={{ margin: '6px 0 0 0', fontSize: '0.78rem', color: '#9ca3af' }}>
+                Auto-generated syllables from vowel combinations. You can remove or add more below.
+              </p>
+            )}
+          </div>
+
+          {/* Syllable chips */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '0.875rem', color: '#374151' }}>
+              Syllable Drills <span style={{ fontWeight: 400, color: '#9ca3af' }}>({syllables.length} total)</span>
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px', minHeight: '36px', padding: '8px', backgroundColor: '#fafafa', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+              {syllables.length === 0 && <span style={{ fontSize: '0.8rem', color: '#9ca3af', alignSelf: 'center' }}>Enter a phoneme above to auto-generate syllables.</span>}
+              {syllables.map(s => (
+                <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '999px', backgroundColor: '#fce7f3', color: '#9d174d', fontWeight: 700, fontSize: '0.85rem' }}>
+                  {s}
+                  <button
+                    type="button"
+                    onClick={() => removeSyllable(s)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#be185d', padding: '0', lineHeight: 1, fontSize: '0.8rem' }}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+            {/* Add custom syllable */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={newSyllableInput}
+                onChange={e => setNewSyllableInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomSyllable())}
+                placeholder="Add custom syllable…"
+                style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.85rem', fontFamily: 'inherit' }}
+              />
+              <button
+                type="button"
+                onClick={addCustomSyllable}
+                disabled={!newSyllableInput.trim()}
+                style={{ padding: '7px 14px', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: 'white', cursor: newSyllableInput.trim() ? 'pointer' : 'not-allowed', fontSize: '0.85rem', fontFamily: 'inherit', color: '#374151', opacity: newSyllableInput.trim() ? 1 : 0.5 }}
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+
+          {/* Repetition count */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '0.875rem', color: '#374151' }}>
+              Repetitions per Syllable: <span style={{ color: '#ec4899', fontWeight: 700 }}>{repetitionCount}×</span>
+            </label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[1, 2, 3, 5, 7, 10].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setRepetitionCount(n)}
+                  style={{ padding: '6px 16px', borderRadius: '999px', border: `2px solid ${repetitionCount === n ? '#ec4899' : '#e5e7eb'}`, backgroundColor: repetitionCount === n ? '#fce7f3' : 'white', color: repetitionCount === n ? '#9d174d' : '#6b7280', fontWeight: repetitionCount === n ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.875rem', transition: 'all 0.15s' }}
+                >
+                  {n}×
+                </button>
+              ))}
+            </div>
+            {syllables.length > 0 && (
+              <p style={{ margin: '8px 0 0 0', fontSize: '0.78rem', color: '#9ca3af' }}>
+                Total attempts: {syllables.length} syllables × {repetitionCount} reps = <strong>{syllables.length * repetitionCount}</strong> recordings
+              </p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ padding: '12px', fontSize: '1rem', backgroundColor: '#ec4899', borderColor: '#ec4899' }}
+          >
+            Save Letter Sounds Practice
+          </button>
+        </form>
+      </div>
+    )
+  }
+
+  // ── Word Bank Form (existing) ──────────────────────────────────────────────
   return (
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
 
-      <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '10px' }}>
+      <button onClick={() => setPracticeMode(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, padding: '4px 0', fontFamily: 'inherit', marginBottom: '10px' }}>
         ← Back
       </button>
-      <h2 style={{ margin: '0 0 20px 0' }}>Create New Practice</h2>
+      <h2 style={{ margin: '0 0 20px 0' }}>Word Bank Practice</h2>
 
       <form onSubmit={handleSubmit} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
 

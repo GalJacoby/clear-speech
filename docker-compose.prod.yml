@@ -1,0 +1,72 @@
+# Explicit project name so this stack's containers, volumes and network never collide with
+# the dev docker-compose.yml (which uses the directory-derived default project name) even if
+# both happen to be run on the same host at the same time.
+name: clearspeech_prod
+
+services:
+  db:
+    image: postgres:15
+    container_name: clearspeech_prod_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clearspeech_net
+    # Intentionally no "ports:" — only reachable from other containers on clearspeech_net.
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: clearspeech_prod_backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+      - word_audio_data:/app/word_audio
+      - hf_cache:/app/.cache/huggingface
+    ports:
+      - "8000:8000"
+    networks:
+      - clearspeech_net
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: clearspeech_prod_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - clearspeech_net
+
+volumes:
+  postgres_data:
+  uploads_data:
+  word_audio_data:
+  hf_cache:
+
+networks:
+  clearspeech_net:
+    driver: bridge

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
+import { API_URL } from '../config'
 
 const SecureAudioPlayer = ({ recordingId }) => {
   const [audioSrc, setAudioSrc] = useState(null)
@@ -11,7 +12,7 @@ const SecureAudioPlayer = ({ recordingId }) => {
     const fetchAudio = async () => {
       try {
         const token = localStorage.getItem('token')
-        const response = await axios.get(`http://127.0.0.1:8000/recordings/play/${recordingId}`, {
+        const response = await axios.get(`${API_URL}/recordings/play/${recordingId}`, {
           headers: { Authorization: `Bearer ${token}` },
           responseType: 'blob'
         })
@@ -67,6 +68,11 @@ function PatientDetails() {
   const [recordings, setRecordings] = useState([])
   const [isReviewLoading, setIsReviewLoading] = useState(false)
 
+  // Clinician notes for the open review panel
+  const [clinicianNotes, setClinicianNotes] = useState('')
+  const [notesSaving, setNotesSaving] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(false)
+
   // Flagged words for this patient
   const [flaggedWords, setFlaggedWords] = useState([])
 
@@ -84,7 +90,7 @@ function PatientDetails() {
     try {
       const token = localStorage.getItem('token')
       const response = await axios.get(
-        `http://127.0.0.1:8000/clinician/patients/${patientId}/assignments`,
+        `${API_URL}/clinician/patients/${patientId}/assignments`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       setAssignments(response.data)
@@ -102,15 +108,15 @@ function PatientDetails() {
 
     fetchAssignments()
 
-    axios.get(`http://127.0.0.1:8000/clinician/patients/${patientId}`, { headers })
+    axios.get(`${API_URL}/clinician/patients/${patientId}`, { headers })
       .then(r => setPatientDetail(r.data))
       .catch(() => {})
 
-    axios.get('http://127.0.0.1:8000/practice/templates', { headers })
+    axios.get(`${API_URL}/practice/templates`, { headers })
       .then(r => setTemplates(r.data))
       .catch(() => {})
 
-    axios.get(`http://127.0.0.1:8000/recordings/flagged/${patientId}`, { headers })
+    axios.get(`${API_URL}/recordings/flagged/${patientId}`, { headers })
       .then(r => setFlaggedWords(r.data))
       .catch(() => {})
   }, [patientId])
@@ -121,7 +127,7 @@ function PatientDetails() {
     )) return
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/clinician/patients/${patientId}`, {
+      await axios.delete(`${API_URL}/clinician/patients/${patientId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       navigate('/patients', { state: { deletedName: displayName } })
@@ -159,7 +165,7 @@ function PatientDetails() {
     try {
       const token = localStorage.getItem('token')
       await axios.patch(
-        `http://127.0.0.1:8000/recordings/${recordingId}/toggle-flag`,
+        `${API_URL}/recordings/${recordingId}/toggle-flag`,
         { flag: 'clinician' },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -177,7 +183,7 @@ function PatientDetails() {
     try {
       const token = localStorage.getItem('token')
       await axios.patch(
-        `http://127.0.0.1:8000/practice/assignments/${assignmentId}/archive`,
+        `${API_URL}/practice/assignments/${assignmentId}/archive`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -193,7 +199,7 @@ function PatientDetails() {
     if (!window.confirm('Remove this assignment from the patient?')) return
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/practice/assignments/${assignmentId}`, {
+      await axios.delete(`${API_URL}/practice/assignments/${assignmentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setAssignments(prev => prev.filter(a => a.id !== assignmentId))
@@ -207,9 +213,12 @@ function PatientDetails() {
     setSelectedAssignmentId(assignmentId)
     setIsReviewLoading(true)
     setRecordings([])
+    setNotesSaved(false)
+    const assignment = assignments.find(a => a.id === assignmentId)
+    setClinicianNotes(assignment?.clinician_notes ?? '')
     try {
       const token = localStorage.getItem('token')
-      const response = await axios.get(`http://127.0.0.1:8000/recordings/assignment/${assignmentId}`, {
+      const response = await axios.get(`${API_URL}/recordings/assignment/${assignmentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setRecordings(response.data)
@@ -217,6 +226,29 @@ function PatientDetails() {
       alert("Could not load recordings for this assignment.")
     } finally {
       setIsReviewLoading(false)
+    }
+  }
+
+  const handleSaveNotes = async () => {
+    if (!selectedAssignmentId) return
+    setNotesSaving(true)
+    setNotesSaved(false)
+    try {
+      const token = localStorage.getItem('token')
+      await axios.patch(
+        `${API_URL}/practice/assignments/${selectedAssignmentId}/notes`,
+        { clinician_notes: clinicianNotes || null },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setAssignments(prev => prev.map(a =>
+        a.id === selectedAssignmentId ? { ...a, clinician_notes: clinicianNotes || null } : a
+      ))
+      setNotesSaved(true)
+      setTimeout(() => setNotesSaved(false), 2500)
+    } catch (err) {
+      console.error('Failed to save notes:', err)
+    } finally {
+      setNotesSaving(false)
     }
   }
 
@@ -238,7 +270,7 @@ function PatientDetails() {
 
     for (let templateId of newIds) {
       try {
-        await axios.post('http://127.0.0.1:8000/practice/assignments', { patient_id: patientId, template_id: templateId }, { headers })
+        await axios.post(`${API_URL}/practice/assignments`, { patient_id: patientId, template_id: templateId }, { headers })
       } catch (err) {
         hasError = true
         if (err.response?.data?.detail) errorMessage = `❌ ${err.response.data.detail}`
@@ -506,6 +538,38 @@ function PatientDetails() {
                     </div>
                   )
                 })}
+              </div>
+
+              {/* Clinician Notes (Private) */}
+              <div style={{ marginTop: '20px', paddingTop: '18px', borderTop: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                  <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Clinician Notes (Private)
+                  </p>
+                  {notesSaving && (
+                    <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>Saving...</span>
+                  )}
+                  {notesSaved && !notesSaving && (
+                    <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>Saved</span>
+                  )}
+                </div>
+                <textarea
+                  value={clinicianNotes}
+                  onChange={e => setClinicianNotes(e.target.value)}
+                  onBlur={e => { e.target.style.borderColor = '#d1d5db'; handleSaveNotes() }}
+                  placeholder="Add private notes or observations about this session here... These are only visible to you."
+                  rows={4}
+                  style={{
+                    width: '100%', padding: '10px 12px', boxSizing: 'border-box',
+                    border: '1px solid #d1d5db', borderRadius: '8px',
+                    fontSize: '0.875rem', color: '#374151', lineHeight: 1.6,
+                    resize: 'vertical', fontFamily: 'inherit',
+                    backgroundColor: '#fffbf5',
+                    outline: 'none',
+                    transition: 'border-color 0.15s',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = '#f59e0b' }}
+                />
               </div>
             </div>
           )}

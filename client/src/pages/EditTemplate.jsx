@@ -3,10 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
 import { Trash2 } from 'lucide-react'
 import '../App.css'
+import { API_URL } from '../config'
 
 function imgSrc(imageUrl) {
   if (!imageUrl) return null
-  return imageUrl.startsWith('http') ? imageUrl : `http://127.0.0.1:8000${imageUrl}`
+  return imageUrl.startsWith('http') ? imageUrl : `${API_URL}${imageUrl}`
 }
 
 function EditTemplate() {
@@ -43,8 +44,8 @@ function EditTemplate() {
         const headers = { Authorization: `Bearer ${token}` }
 
         const [wordsRes, templateRes] = await Promise.all([
-          axios.get('http://127.0.0.1:8000/practice/words', { headers }),
-          axios.get(`http://127.0.0.1:8000/practice/templates/${templateId}`, { headers })
+          axios.get(`${API_URL}/practice/words`, { headers }),
+          axios.get(`${API_URL}/practice/templates/${templateId}`, { headers })
         ])
 
         setAllWords(wordsRes.data)
@@ -79,7 +80,7 @@ function EditTemplate() {
   const resolveAudioSrc = (audioUrl) => {
     if (!audioUrl) return null
     if (audioUrl.startsWith('blob:') || audioUrl.startsWith('http')) return audioUrl
-    return `http://127.0.0.1:8000${audioUrl}`
+    return `${API_URL}${audioUrl}`
   }
 
   const playPreview = (wordId, audioUrl) => {
@@ -126,7 +127,7 @@ function EditTemplate() {
         const word = allWords.find(w => w.id === wordId)
         if (word) {
           await axios.post(
-            'http://127.0.0.1:8000/practice/audio/generate',
+            `${API_URL}/practice/audio/generate`,
             { word_id: wordId, text: word.text },
             { headers: { Authorization: `Bearer ${token}` } }
           )
@@ -143,7 +144,7 @@ function EditTemplate() {
     if (!window.confirm(`Delete "${wordText}" from the word bank? Existing practices that use this word will not be affected.`)) return
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/practice/words/${wordId}`, {
+      await axios.delete(`${API_URL}/practice/words/${wordId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setAllWords(prev => prev.filter(w => w.id !== wordId))
@@ -158,7 +159,7 @@ function EditTemplate() {
     try {
       const token = localStorage.getItem('token')
       await axios.patch(
-        `http://127.0.0.1:8000/practice/words/${wordId}/type`,
+        `${API_URL}/practice/words/${wordId}/type`,
         { practice_type: newType },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -174,7 +175,7 @@ function EditTemplate() {
     try {
       const token = localStorage.getItem('token')
       const res = await axios.post(
-        'http://127.0.0.1:8000/practice/audio/generate',
+        `${API_URL}/practice/audio/generate`,
         { word_id: wordId, text: wordText },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -276,7 +277,7 @@ function EditTemplate() {
       const formData = new FormData()
       formData.append('file', file)
       const res = await axios.post(
-        `http://127.0.0.1:8000/practice/words/${wordId}/audio`,
+        `${API_URL}/practice/words/${wordId}/audio`,
         formData,
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
       )
@@ -297,7 +298,7 @@ function EditTemplate() {
     }
     try {
       const token = localStorage.getItem('token')
-      await axios.put(`http://127.0.0.1:8000/practice/templates/${templateId}`, {
+      await axios.put(`${API_URL}/practice/templates/${templateId}`, {
         title,
         target_sound: targetSound,
         word_ids: selectedWordIds

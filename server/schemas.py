@@ -68,18 +68,6 @@ class AudioGenerateRequest(BaseModel):
     text: str
 
 
-class WordOut(BaseModel):
-    id: int
-    text: str
-    phonetic_trans: str
-    image_url: Optional[str] = None
-    category: Optional[str] = None
-    difficulty: Optional[int] = None
-
-    class Config:
-        from_attributes = True
-
-
 class PatientDetailOut(BaseModel):
     user_id: uuid.UUID
     full_name: str
@@ -97,7 +85,10 @@ class PatientDetailOut(BaseModel):
 class ExerciseTemplateCreate(BaseModel):
     title: str
     target_sound: str
-    word_ids: List[int]  # The frontend will send the selected words' IDs here
+    word_ids: List[int] = []
+    practice_type: str = 'words'
+    syllable_prompts: Optional[List[str]] = None
+    repetition_count: Optional[int] = None
 
 
 class ExerciseTemplateOut(BaseModel):
@@ -106,6 +97,9 @@ class ExerciseTemplateOut(BaseModel):
     target_sound: str
     created_by_clinician_id: uuid.UUID
     created_at: datetime
+    practice_type: str = 'words'
+    syllable_prompts: Optional[List[str]] = None
+    repetition_count: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -124,6 +118,9 @@ class ExerciseTemplateDetailOut(BaseModel):
     created_by_clinician_id: uuid.UUID
     created_at: datetime
     word_ids: List[int]
+    practice_type: str = 'words'
+    syllable_prompts: Optional[List[str]] = None
+    repetition_count: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -139,6 +136,10 @@ class AssignmentComplete(BaseModel):
     score: Optional[int] = None  # average AI grade for the session (0-100)
 
 
+class AssignmentNotesUpdate(BaseModel):
+    clinician_notes: Optional[str] = None
+
+
 class PatientAssignmentOut(BaseModel):
     id: uuid.UUID
     patient_id: uuid.UUID
@@ -149,10 +150,14 @@ class PatientAssignmentOut(BaseModel):
     completed_at: Optional[datetime] = None
     is_archived: bool = False
     created_at: datetime
+    clinician_notes: Optional[str] = None
 
     # Virtual fields fetched from the template via @property in models.py
     template_title: Optional[str] = None
     target_sound: Optional[str] = None
+    practice_type: str = 'words'
+    syllable_prompts: Optional[List[str]] = None
+    repetition_count: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -197,6 +202,7 @@ class RecordingOut(BaseModel):
     feedback: Optional[str] = None
     marked_by_clinician: bool = False
     marked_by_patient: bool = False
+    syllable_text: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
+import { API_URL } from '../config'
 
 function Practices() {
   const navigate = useNavigate()
@@ -17,7 +18,7 @@ function Practices() {
   const fetchTemplates = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await axios.get('http://127.0.0.1:8000/practice/templates', {
+      const response = await axios.get(`${API_URL}/practice/templates`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setTemplates(response.data)
@@ -34,7 +35,7 @@ function Practices() {
     setDeleteError('')
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/practice/templates/${templateId}`, {
+      await axios.delete(`${API_URL}/practice/templates/${templateId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setTemplates(prev => prev.filter(t => t.id !== templateId))
@@ -81,8 +82,20 @@ function Practices() {
                 <h3 className="template-title">{template.title}</h3>
                 <div className="mission-meta">
                   <span className="badge badge-sound">{template.target_sound}</span>
+                  {template.practice_type === 'sounds' ? (
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', backgroundColor: '#fce7f3', color: '#9d174d' }}>
+                      Letter Sounds
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', backgroundColor: '#eff6ff', color: '#1d4ed8' }}>
+                      Word Bank
+                    </span>
+                  )}
                 </div>
-                {template.word_count != null && (
+                {template.practice_type === 'sounds' && template.syllable_prompts?.length > 0 && (
+                  <p className="template-meta">{template.syllable_prompts.length} syllable{template.syllable_prompts.length !== 1 ? 's' : ''} × {template.repetition_count || 3} reps</p>
+                )}
+                {template.practice_type !== 'sounds' && template.word_count != null && (
                   <p className="template-meta">{template.word_count} word{template.word_count !== 1 ? 's' : ''}</p>
                 )}
               </div>
