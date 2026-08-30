@@ -2,13 +2,20 @@ fastapi
 uvicorn[standard]
 python-multipart
 librosa
+soundfile
 transformers
 torch
 psycopg2-binary
 python-jose[cryptography]
 passlib[bcrypt]
+# passlib 1.7.4 (its latest release) crashes on any hash/verify call against bcrypt>=4.1 —
+# bcrypt tightened its internal validation in a way passlib's self-test doesn't tolerate.
+# Pin below that line so a fresh install doesn't silently break login.
+bcrypt<4.1
 sqlalchemy
 email-validator
 httpx
 google-generativeai
+google-genai
 gTTS
+python-dotenv

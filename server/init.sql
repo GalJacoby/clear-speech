@@ -43,7 +43,10 @@ CREATE TABLE exercise_templates (
     target_sound VARCHAR NOT NULL,
     created_by_clinician_id UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    is_archived BOOLEAN NOT NULL DEFAULT false
+    is_archived BOOLEAN NOT NULL DEFAULT false,
+    practice_type VARCHAR NOT NULL DEFAULT 'words',
+    syllable_prompts TEXT[],
+    repetition_count INTEGER
 );
 
 -- 2. Template Words (Many-to-Many junction table linking templates to words)
@@ -60,8 +63,11 @@ CREATE TABLE patient_assignments (
     clinician_id UUID REFERENCES users(id) NOT NULL,
     template_id UUID REFERENCES exercise_templates(id) NOT NULL,
     status VARCHAR DEFAULT 'pending',
+    score INTEGER,
+    completed_at TIMESTAMP WITH TIME ZONE,
     is_archived BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    clinician_notes TEXT
 );
 
 -- 4. Appointments (Scheduled sessions between clinician and patient)
@@ -87,5 +93,6 @@ CREATE TABLE recordings (
     file_path VARCHAR UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_reviewed BOOLEAN DEFAULT FALSE,
-    word_id INTEGER REFERENCES word_bank(id) NOT NULL
+    word_id INTEGER REFERENCES word_bank(id),
+    syllable_text VARCHAR
 );

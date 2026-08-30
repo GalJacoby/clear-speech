@@ -64,6 +64,9 @@ class ExerciseTemplate(Base):
     created_by_clinician_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_archived = Column(Boolean, default=False, server_default='false', nullable=False)
+    practice_type = Column(String, default='words', server_default='words', nullable=False)
+    syllable_prompts = Column(ARRAY(String), nullable=True)
+    repetition_count = Column(Integer, nullable=True)
 
     # Many-to-Many relationship: Fetches all WordBank objects linked to this template
     words = relationship("WordBank", secondary="template_words")
@@ -82,6 +85,7 @@ class PatientAssignment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     is_archived = Column(Boolean, default=False, server_default='false', nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    clinician_notes = Column(Text, nullable=True)
 
     # Relationship to access the template details easily
     template = relationship("ExerciseTemplate")
@@ -94,6 +98,18 @@ class PatientAssignment(Base):
     @property
     def target_sound(self):
         return self.template.target_sound if self.template else None
+
+    @property
+    def practice_type(self):
+        return self.template.practice_type if self.template else 'words'
+
+    @property
+    def syllable_prompts(self):
+        return self.template.syllable_prompts if self.template else None
+
+    @property
+    def repetition_count(self):
+        return self.template.repetition_count if self.template else None
 
 
 class Appointment(Base):
@@ -132,7 +148,8 @@ class Recording(Base):
     file_path = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_reviewed = Column(Boolean, default=False)
-    word_id = Column(Integer, ForeignKey("word_bank.id"), nullable=False)
+    word_id = Column(Integer, ForeignKey("word_bank.id"), nullable=True)
+    syllable_text = Column(String, nullable=True)     # For 'sounds' practice type
     score = Column(Integer, nullable=True)            # AI score for this specific word (0-100)
     feedback = Column(String, nullable=True)          # AI phonetic feedback for this word
     marked_by_clinician = Column(Boolean, default=False, server_default='false', nullable=False)
@@ -142,7 +159,8 @@ class Recording(Base):
     word = relationship("WordBank")
     assignment = relationship("PatientAssignment")
 
-    # Property: Extracts just the text string for easier API response
     @property
     def word_text(self):
-        return self.word.text if self.word else "Unknown"
+        if self.word:
+            return self.word.text
+        return self.syllable_text or "Unknown"

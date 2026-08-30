@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
+import { API_URL } from '../config'
 
 function toTitleCase(str) {
   return str
@@ -42,15 +43,15 @@ function Dashboard({ setToken }) {
         if (!token) { navigate('/login'); return }
 
         const headers = { Authorization: `Bearer ${token}` }
-        const userResponse = await axios.get('http://127.0.0.1:8000/users/me', { headers })
+        const userResponse = await axios.get(`${API_URL}/users/me`, { headers })
         const currentUser = userResponse.data
         setUser(currentUser)
 
         if (currentUser.role === 'patient') {
           const [assignRes, apptRes, flagRes] = await Promise.all([
-            axios.get('http://127.0.0.1:8000/practice/patient/assignments', { headers }),
-            axios.get('http://127.0.0.1:8000/appointments/upcoming', { headers }).catch(() => ({ data: [] })),
-            axios.get('http://127.0.0.1:8000/recordings/my-flagged', { headers }).catch(() => ({ data: [] })),
+            axios.get(`${API_URL}/practice/patient/assignments`, { headers }),
+            axios.get(`${API_URL}/appointments/upcoming`, { headers }).catch(() => ({ data: [] })),
+            axios.get(`${API_URL}/recordings/my-flagged`, { headers }).catch(() => ({ data: [] })),
           ])
           setAssignments(assignRes.data.filter(a => a.status === 'pending'))
           setCompletedAssignments(
@@ -88,7 +89,7 @@ function Dashboard({ setToken }) {
     setLoadingRecordingsFor(assignmentId)
     try {
       const token = localStorage.getItem('token')
-      const res = await axios.get(`http://127.0.0.1:8000/recordings/assignment/${assignmentId}`, {
+      const res = await axios.get(`${API_URL}/recordings/assignment/${assignmentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setPracticeRecordings(prev => ({ ...prev, [assignmentId]: res.data }))
@@ -127,7 +128,7 @@ function Dashboard({ setToken }) {
     try {
       const token = localStorage.getItem('token')
       await axios.patch(
-        `http://127.0.0.1:8000/recordings/${recordingId}/toggle-flag`,
+        `${API_URL}/recordings/${recordingId}/toggle-flag`,
         { flag: 'patient' },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -180,7 +181,7 @@ function Dashboard({ setToken }) {
                     </div>
                     <button
                       className="btn-start-full"
-                      onClick={() => navigate(`/practice/${assignment.id}`, { state: { targetSound: assignment.target_sound } })}
+                      onClick={() => navigate(`/practice/${assignment.id}`, { state: { targetSound: assignment.target_sound, practiceType: assignment.practice_type || 'words', syllablePrompts: assignment.syllable_prompts || [], repetitionCount: assignment.repetition_count || 3 } })}
                     >
                       Start
                     </button>

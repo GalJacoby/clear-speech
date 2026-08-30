@@ -21,3 +21,10 @@ Thumbs.db
 
 # Docker
 .dockerignore
+
+# Secrets and Credentials
+google api key secret.txt
+
+# Media and Uploads
+server/uploads/
+server/word_audio/

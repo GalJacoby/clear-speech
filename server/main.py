@@ -19,14 +19,19 @@ WORD_AUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "word_
 os.makedirs(WORD_AUDIO_DIR, exist_ok=True)
 print(f"[main] WORD_AUDIO_DIR = {WORD_AUDIO_DIR}")
 
+
+# CORS_ORIGINS: comma-separated allowlist for production (e.g. "https://app.example.com").
+# Falls back to "*" so local dev is unaffected when the env var is unset.
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins = ["*"] if _cors_origins_env == "*" else [o.strip() for o in _cors_origins_env.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 @app.get("/")
 async def root():
     return {"message": "ClearSpeech API is running"}

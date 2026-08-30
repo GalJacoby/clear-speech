@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
+import { API_URL } from '../config'
 
 function Login({ setToken }) {
   const [email, setEmail] = useState('')
@@ -16,7 +17,7 @@ function Login({ setToken }) {
       formData.append('username', email)
       formData.append('password', password)
 
-      const response = await axios.post('http://127.0.0.1:8000/login', formData, {
+      const response = await axios.post(`${API_URL}/login`, formData, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       })
 

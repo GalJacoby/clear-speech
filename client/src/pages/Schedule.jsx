@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '../App.css'
+import { API_URL } from '../config'
 
 const localizer = dateFnsLocalizer({
   format,
@@ -45,7 +46,7 @@ function Schedule() {
   const fetchAppointments = useCallback(async () => {
     try {
       const token = localStorage.getItem('token')
-      const res = await axios.get('http://127.0.0.1:8000/appointments', {
+      const res = await axios.get(`${API_URL}/appointments`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setAppointments(res.data)
@@ -60,7 +61,7 @@ function Schedule() {
 
     fetchAppointments()
 
-    axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers })
+    axios.get(`${API_URL}/clinician/my-patients`, { headers })
       .then(r => setPatients(r.data))
       .catch(err => console.error("Failed to fetch patients:", err))
   }, [])
@@ -113,7 +114,7 @@ function Schedule() {
 
     try {
       const token = localStorage.getItem('token')
-      const res = await axios.post('http://127.0.0.1:8000/appointments', {
+      const res = await axios.post(`${API_URL}/appointments`, {
         patient_id: form.patient_id,
         title: form.title,
         start_time: startISO,
@@ -133,7 +134,7 @@ function Schedule() {
     if (!window.confirm('Delete this appointment?')) return
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/appointments/${selectedEvent.id}`, {
+      await axios.delete(`${API_URL}/appointments/${selectedEvent.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setAppointments(prev => prev.filter(a => a.id !== selectedEvent.id))
@@ -148,7 +149,7 @@ function Schedule() {
     if (!window.confirm('Delete ALL appointments in this series?')) return
     try {
       const token = localStorage.getItem('token')
-      await axios.delete(`http://127.0.0.1:8000/appointments/series/${selectedEvent.recurrence_group_id}`, {
+      await axios.delete(`${API_URL}/appointments/series/${selectedEvent.recurrence_group_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setAppointments(prev => prev.filter(a => a.recurrence_group_id !== selectedEvent.recurrence_group_id))

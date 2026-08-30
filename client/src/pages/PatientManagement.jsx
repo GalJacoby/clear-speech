@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
+import { API_URL } from '../config'
 
 function PatientManagement() {
   const navigate = useNavigate()
@@ -38,13 +39,13 @@ function PatientManagement() {
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      const patientsRes = await axios.get('http://127.0.0.1:8000/clinician/my-patients', { headers })
+      const patientsRes = await axios.get(`${API_URL}/clinician/my-patients`, { headers })
       const fetchedPatients = patientsRes.data
 
       // Fetch assignments per patient to show the completed-count badge
       const patientsWithCounts = await Promise.all(fetchedPatients.map(async (patient) => {
         try {
-          const assignRes = await axios.get(`http://127.0.0.1:8000/clinician/patients/${patient.user_id}/assignments`, { headers })
+          const assignRes = await axios.get(`${API_URL}/clinician/patients/${patient.user_id}/assignments`, { headers })
           const completedCount = assignRes.data.filter(a => a.status === 'completed').length
           return { ...patient, completedCount }
         } catch {
@@ -96,7 +97,7 @@ function PatientManagement() {
           ? createForm.target_sounds.split(',').map(s => s.trim()).filter(Boolean)
           : []
       }
-      await axios.post('http://127.0.0.1:8000/clinician/patients', payload, { headers })
+      await axios.post(`${API_URL}/clinician/patients`, payload, { headers })
       setCreateMessage('Patient created successfully.')
       await fetchData()
       setTimeout(() => closeCreateModal(), 1500)

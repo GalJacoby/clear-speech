@@ -322,12 +322,15 @@ def create_exercise_template(
     new_template = models.ExerciseTemplate(
         title=template_data.title,
         target_sound=template_data.target_sound,
-        created_by_clinician_id=current_user.id
+        created_by_clinician_id=current_user.id,
+        practice_type=template_data.practice_type,
+        syllable_prompts=template_data.syllable_prompts,
+        repetition_count=template_data.repetition_count,
     )
     db.add(new_template)
     db.flush()  # Flush to get the new_template.id before committing
 
-    # 2. Create the links in the junction table (template_words)
+    # 2. Create the links in the junction table (template_words) — only for 'words' type
     for w_id in template_data.word_ids:
         # Check if word exists (optional but good practice)
         word_exists = db.query(models.WordBank).filter(models.WordBank.id == w_id).first()
@@ -388,7 +391,10 @@ def get_template_detail(
         "target_sound": template.target_sound,
         "created_by_clinician_id": template.created_by_clinician_id,
         "created_at": template.created_at,
-        "word_ids": word_ids
+        "word_ids": word_ids,
+        "practice_type": template.practice_type,
+        "syllable_prompts": template.syllable_prompts,
+        "repetition_count": template.repetition_count,
     }
 
 
@@ -561,6 +567,28 @@ def archive_assignment(
         raise HTTPException(status_code=404, detail="Assignment not found.")
     assignment.is_archived = True
     db.commit()
+
+
+# Save or update private clinician notes on an assignment
+@router.patch("/assignments/{assignment_id}/notes", response_model=schemas.PatientAssignmentOut)
+def update_assignment_notes(
+        assignment_id: uuid.UUID,
+        data: schemas.AssignmentNotesUpdate,
+        db: Session = Depends(database.get_db),
+        current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role != "clinician":
+        raise HTTPException(status_code=403, detail="Only clinicians can update notes.")
+    assignment = db.query(models.PatientAssignment).filter(
+        models.PatientAssignment.id == str(assignment_id),
+        models.PatientAssignment.clinician_id == current_user.id
+    ).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found.")
+    assignment.clinician_notes = data.clinician_notes
+    db.commit()
+    db.refresh(assignment)
+    return assignment
 
 
 # Removes a pending assignment (clinician only)

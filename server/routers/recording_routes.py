@@ -10,8 +10,11 @@ import soundfile as sf
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from sqlalchemy import or_
-import google.generativeai as genai
+from google import genai
+from dotenv import load_dotenv
 from transformers import pipeline as hf_pipeline
+
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
 
 # Local imports
 import database
@@ -32,27 +35,49 @@ def get_asr_pipeline():
 
 
 # ── Gemini grading ────────────────────────────────────────────────────────────
-def grade_with_gemini(word: str, transcription: str) -> dict:
+def grade_with_gemini(word: str, transcription: str, practice_type: str = 'words') -> dict:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+        raise HTTPException(
+            status_code=503,
+            detail="Grading unavailable: GEMINI_API_KEY is not configured. Add it to server/.env."
+        )
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        generation_config=genai.GenerationConfig(
+    client = genai.Client(api_key=api_key)
+
+    if practice_type == 'sounds':
+        system_instruction = (
+            "You are an expert speech-language pathology AI evaluating a child practicing isolated target sounds and syllables. "
+            "The child was asked to say the target syllable exactly as presented. "
+            "Analyze the phonetic difference between the target syllable and what the patient said (transcribed), and score using this generous pediatric rubric: "
+            "90-100: Perfect phoneme match or minor spelling variations. "
+            "65-89: Great attempt! A single sound swap or distortion occurred (e.g., saying 'shi' instead of 'si', or 'shu' instead of 'su'). Never give a 0 for a close phonetic attempt. "
+            "30-64: Partial match where they got the vowel sound right but missed the target consonant phoneme completely (e.g., saying 'mi' instead of 'si'). "
+            "0-29: The response is completely unrelated, blank, or a totally different word/sound structure. "
+            "Return a JSON object with exactly two keys: "
+            "\"score\" (integer based on the rubric above) and "
+            "\"feedback\" (string, a single short, warm sentence explicitly identifying the sound swap constructively, "
+            "e.g., 'So close! You made a soft \"sh\" sound instead of an \"s\" sound—let\\'s try to keep it sharp next time!')"
+        )
+        contents = f'Target syllable: "{word}"\nWhat the patient said (transcribed): "{transcription}"'
+    else:
+        system_instruction = (
+            "You are an expert speech-language pathology AI evaluating a child's pronunciation. "
+            "Compare the target word against the child's transcription to find specific sound errors (substitutions, omissions, or distortions). "
+            "Return a JSON object with exactly two keys: "
+            "\"score\" (integer 0-100, where 100 = perfect match) and "
+            "\"feedback\" (string, a single short, warm sentence pinpointing exactly what sound went wrong, e.g., 'Great try! You made a \"sh\" sound instead of an \"s\" sound.')"
+        )
+        contents = f'Target word: "{word}"\nWhat the patient said (transcribed): "{transcription}"'
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=contents,
+        config=genai.types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0.2,
+            system_instruction=system_instruction,
         ),
-        system_instruction=(
-            "You are a speech therapy AI evaluating a child's pronunciation. "
-            "Return a JSON object with exactly two keys: "
-            "\"score\" (integer 0-100, where 100 = perfect pronunciation) and "
-            "\"feedback\" (string, 2-3 sentences of specific, encouraging phonetic advice)."
-        ),
-    )
-    response = model.generate_content(
-        f'Target word: "{word}"\nWhat the patient said (transcribed): "{transcription}"'
     )
     return json.loads(response.text)
 
@@ -69,7 +94,8 @@ if not os.path.exists(UPLOAD_DIR):
 @router.post("/upload", response_model=schemas.RecordingOut)
 async def upload_audio(
         assignment_id: uuid.UUID = Form(...),
-        word_id: int = Form(...),
+        word_id: Optional[int] = Form(None),
+        syllable_text: Optional[str] = Form(None),
         file: UploadFile = File(...),
         score: Optional[int] = Form(None),
         feedback: Optional[str] = Form(None),
@@ -115,6 +141,7 @@ async def upload_audio(
         target_sound=assignment.target_sound,
         file_path=file_path,
         word_id=word_id,
+        syllable_text=syllable_text,
         is_reviewed=False,
         score=score,
         feedback=feedback,
@@ -185,6 +212,7 @@ def play_recording(
 def grade_audio(
         file: UploadFile = File(...),
         word: str = Form(...),
+        practice_type: str = Form('words'),
         current_user: models.User = Depends(auth.get_current_user)
 ):
     """
@@ -207,17 +235,17 @@ def grade_audio(
         transcription = pipe({"array": audio_array, "sampling_rate": sample_rate})["text"].strip()
         print(f"[grade] Transcription: '{transcription}'")
 
-        result = grade_with_gemini(word, transcription)
+        result = grade_with_gemini(word, transcription, practice_type)
         print(f"[grade] Score: {result.get('score')} | Feedback: {result.get('feedback', '')[:60]}…")
         return result
 
+    except HTTPException:
+        raise
     except json.JSONDecodeError:
         return {"score": 50, "feedback": "The AI response could not be parsed. Please try recording again."}
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        print(f"[grade] Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=f"Grading failed: {str(e)}")
+        print(f"[grade] Unexpected error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Grading failed: {type(e).__name__}: {str(e)}")
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)

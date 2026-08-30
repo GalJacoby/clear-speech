@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
+import { API_URL } from '../config'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ function SecureAudioPlayer({ recordingId }) {
     const load = async () => {
       try {
         const token = localStorage.getItem('token')
-        const res = await axios.get(`http://127.0.0.1:8000/recordings/play/${recordingId}`, {
+        const res = await axios.get(`${API_URL}/recordings/play/${recordingId}`, {
           headers: { Authorization: `Bearer ${token}` },
           responseType: 'blob'
         })
@@ -73,7 +74,7 @@ function ArchivedPractices() {
       try {
         const token = localStorage.getItem('token')
         const res = await axios.get(
-          `http://127.0.0.1:8000/clinician/patients/${patientId}/archived-assignments`,
+          `${API_URL}/clinician/patients/${patientId}/archived-assignments`,
           { headers: { Authorization: `Bearer ${token}` } }
         )
         setArchived(res.data)
@@ -99,7 +100,7 @@ function ArchivedPractices() {
     try {
       const token = localStorage.getItem('token')
       const res = await axios.get(
-        `http://127.0.0.1:8000/recordings/assignment/${assignmentId}`,
+        `${API_URL}/recordings/assignment/${assignmentId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       setRecordingsCache(prev => ({ ...prev, [assignmentId]: res.data }))

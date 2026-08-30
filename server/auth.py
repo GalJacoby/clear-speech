@@ -1,3 +1,4 @@
+import os
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional
@@ -11,8 +12,9 @@ import models
 from database import get_db
 
 # --- CONFIGURATION ---
-# SECRET_KEY: This key signs the JWT tokens. In production, use an environment variable!
-SECRET_KEY = "super_secret_key_for_clearspeech_dev_only"
+# SECRET_KEY: This key signs the JWT tokens. Injected via environment in production;
+# falls back to a dev-only value so local `uvicorn --reload` keeps working unconfigured.
+SECRET_KEY = os.environ.get("SECRET_KEY", "super_secret_key_for_clearspeech_dev_only")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token is valid for 1 hour
 
